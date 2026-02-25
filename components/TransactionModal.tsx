@@ -1,0 +1,257 @@
+"use client";
+
+import { useState, useMemo } from "react";
+import { supabase } from "@/lib/supabase";
+import { BUDGET_CATEGORIES, formatCurrency } from "@/lib/data";
+import type { DbTransaction, DbBudget } from "@/lib/database.types";
+
+type Props = {
+  tx: DbTransaction;
+  budgets: DbBudget[];
+  onClose: () => void;
+  onSave: (updatedTxns: DbTransaction[]) => void;
+  allTransactions: DbTransaction[];
+};
+
+export default function TransactionModal({
+  tx,
+  budgets,
+  onClose,
+  onSave,
+  allTransactions,
+}: Props) {
+  const [date, setDate] = useState(tx.date);
+  const [description, setDescription] = useState(tx.description);
+  const [amount, setAmount] = useState(String(tx.amount));
+  const [category, setCategory] = useState(tx.category);
+  const [subcategory, setSubcategory] = useState(tx.subcategory);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Recategorization confirmation
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [pendingApplyAll, setPendingApplyAll] = useState(false);
+
+  const categoryChanged =
+    category !== tx.category || subcategory !== tx.subcategory;
+
+  const subcategoryOptions = useMemo(() => {
+    const seen = new Set<string>();
+    return budgets
+      .filter((b) => b.category === category)
+      .map((b) => b.subcategory)
+      .filter((s) => {
+        if (seen.has(s)) return false;
+        seen.add(s);
+        return true;
+      });
+  }, [budgets, category]);
+
+  async function doSave(applyToAll: boolean) {
+    setSaving(true);
+    setError(null);
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount < 0) {
+      setError("Amount must be a positive number.");
+      setSaving(false);
+      return;
+    }
+
+    try {
+      if (applyToAll) {
+        // Update all transactions with the same original description to use new category/subcategory
+        const { error: bulkErr } = await supabase
+          .from("transactions")
+          .update({ category, subcategory })
+          .eq("description", tx.description)
+          .neq("id", tx.id);
+        if (bulkErr) throw bulkErr;
+      }
+
+      // Always update the specific transaction with all changed fields
+      const { error: singleErr } = await supabase
+        .from("transactions")
+        .update({ date, description, amount: parsedAmount, category, subcategory })
+        .eq("id", tx.id);
+      if (singleErr) throw singleErr;
+
+      // Build updated local list
+      const updated = allTransactions.map((t) => {
+        if (t.id === tx.id) {
+          return { ...t, date, description, amount: parsedAmount, category, subcategory };
+        }
+        if (applyToAll && t.description === tx.description) {
+          return { ...t, category, subcategory };
+        }
+        return t;
+      });
+
+      onSave(updated);
+    } catch (err: any) {
+      setError(err.message ?? "Save failed. Please try again.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function handleSave() {
+    if (categoryChanged) {
+      setShowConfirm(true);
+    } else {
+      doSave(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
+    >
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+          <h2 className="text-base font-semibold text-gray-900">Edit Transaction</h2>
+          <button
+            onClick={onClose}
+            className="text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Body */}
+        <div className="px-6 py-5 space-y-4">
+          {/* Date */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Date</label>
+            <input
+              type="date"
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+
+          {/* Description */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Description</label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+          </div>
+
+          {/* Amount */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Amount</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">$</span>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+              />
+            </div>
+          </div>
+
+          {/* Category */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Category</label>
+            <select
+              value={category}
+              onChange={(e) => {
+                setCategory(e.target.value);
+                setSubcategory(""); // reset subcategory when category changes
+              }}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+            >
+              {BUDGET_CATEGORIES.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+              {/* If current category isn't in BUDGET_CATEGORIES */}
+              {!BUDGET_CATEGORIES.find((c) => c.id === tx.category) && (
+                <option value={tx.category}>{tx.category}</option>
+              )}
+            </select>
+          </div>
+
+          {/* Subcategory */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Subcategory</label>
+            <input
+              type="text"
+              list="subcategory-list"
+              value={subcategory}
+              onChange={(e) => setSubcategory(e.target.value)}
+              placeholder={subcategoryOptions[0] ?? "Enter subcategory…"}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
+            />
+            <datalist id="subcategory-list">
+              {subcategoryOptions.map((s) => (
+                <option key={s} value={s} />
+              ))}
+            </datalist>
+          </div>
+
+          {error && (
+            <p className="text-xs text-red-500">{error}</p>
+          )}
+
+          {/* Recategorization confirmation */}
+          {showConfirm && (
+            <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
+              <p className="text-sm text-gray-700">
+                Apply this category to{" "}
+                <strong>all transactions from "{tx.description}"</strong>?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setShowConfirm(false); doSave(true); }}
+                  disabled={saving}
+                  className="flex-1 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
+                >
+                  Yes, apply to all
+                </button>
+                <button
+                  onClick={() => { setShowConfirm(false); doSave(false); }}
+                  disabled={saving}
+                  className="flex-1 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  No, just this one
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        {!showConfirm && (
+          <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
+            <button
+              onClick={onClose}
+              className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className="flex-1 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50"
+            >
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

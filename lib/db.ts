@@ -38,6 +38,19 @@ export async function getTransactions(
   return data ?? [];
 }
 
+export async function getTransactionsByDateRange(from: string, to: string): Promise<DbTransaction[]> {
+  console.log(TAG, `getTransactionsByDateRange — range: ${from} → <${to}`);
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .gte("date", from)
+    .lt("date", to)
+    .order("date", { ascending: false });
+  console.log(TAG, "getTransactionsByDateRange — error:", error, "| count:", data?.length ?? 0);
+  if (error) throw new Error(`getTransactionsByDateRange: ${error.message}`);
+  return data ?? [];
+}
+
 export async function getBudgets(
   month: number,
   year: number

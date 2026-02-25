@@ -194,8 +194,7 @@ export default function BudgetsClient({ accounts, transactions, budgets }: Props
 
   // Bar chart
   const chartData = categoryViews.map((c) => ({
-    name: c.name.length > 12 ? c.name.slice(0, 11) + "…" : c.name,
-    fullName: c.name,
+    name: c.name,
     Budgeted: parseFloat(c.budgeted.toFixed(2)),
     Spent: parseFloat(c.spent.toFixed(2)),
     color: c.color,
@@ -203,10 +202,9 @@ export default function BudgetsClient({ accounts, transactions, budgets }: Props
 
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (!active || !payload?.length) return null;
-    const entry = chartData.find((d) => d.name === label);
     return (
       <div className="bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-xs">
-        <p className="font-semibold text-gray-800 mb-2">{entry?.fullName ?? label}</p>
+        <p className="font-semibold text-gray-800 mb-2">{label}</p>
         {payload.map((p: any) => (
           <div key={p.name} className="flex items-center justify-between gap-6">
             <span className="text-gray-500">{p.name}</span>
@@ -216,6 +214,33 @@ export default function BudgetsClient({ accounts, transactions, budgets }: Props
       </div>
     );
   };
+
+  function wrapLabel(name: string): [string, string] {
+    if (name.includes("/")) {
+      const idx = name.indexOf("/");
+      return [name.slice(0, idx + 1).trim(), name.slice(idx + 1).trim()];
+    }
+    if (name.includes("&")) {
+      const idx = name.indexOf("&");
+      return [name.slice(0, idx + 1).trim(), name.slice(idx + 1).trim()];
+    }
+    const words = name.split(" ");
+    if (words.length <= 1) return [name, ""];
+    const mid = Math.ceil(words.length / 2);
+    return [words.slice(0, mid).join(" "), words.slice(mid).join(" ")];
+  }
+
+  function CustomXTick({ x, y, payload }: any) {
+    const [line1, line2] = wrapLabel(payload.value as string);
+    return (
+      <g transform={`translate(${x},${y})`}>
+        <text textAnchor="middle" fill="#374151" fontWeight="700" fontSize={10}>
+          <tspan x="0" dy="12">{line1}</tspan>
+          {line2 && <tspan x="0" dy="13">{line2}</tspan>}
+        </text>
+      </g>
+    );
+  }
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50">
@@ -251,19 +276,30 @@ export default function BudgetsClient({ accounts, transactions, budgets }: Props
           <div className="px-5 pt-5 pb-2">
             <h2 className="text-sm font-semibold text-gray-700">Budgeted vs Spent by Category</h2>
           </div>
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 60 }} barGap={2} barSize={14}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-              <XAxis dataKey="name" tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} angle={-35} textAnchor="end" interval={0} />
-              <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} width={40} />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f8fafc" }} />
-              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: "#6b7280", paddingTop: 8 }} />
-              <Bar dataKey="Budgeted" fill="#e2e8f0" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="Spent" radius={[3, 3, 0, 0]}>
-                {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Bar>
-            </BarChart>
-          </ResponsiveContainer>
+          <div style={{ overflowX: "auto" }}>
+            <div style={{ minWidth: Math.max(720, categoryViews.length * 110) }}>
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 10 }} barGap={2} barSize={14}>
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <XAxis
+                    dataKey="name"
+                    tick={<CustomXTick />}
+                    tickLine={false}
+                    axisLine={false}
+                    interval={0}
+                    height={44}
+                  />
+                  <YAxis tickFormatter={(v) => `$${(v / 1000).toFixed(0)}k`} tick={{ fontSize: 10, fill: "#9ca3af" }} tickLine={false} axisLine={false} width={40} />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: "#f8fafc" }} />
+                  <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: 11, color: "#6b7280", paddingTop: 8 }} />
+                  <Bar dataKey="Budgeted" fill="#e2e8f0" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Spent" radius={[3, 3, 0, 0]}>
+                    {chartData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
         </div>
 
         {/* Category breakdown */}

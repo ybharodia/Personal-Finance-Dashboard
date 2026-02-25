@@ -2,22 +2,40 @@
 
 import { useState, useMemo } from "react";
 import AccountsPanel from "@/components/AccountsPanel";
+import DateRangeFilter, { type DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import TransactionModal from "@/components/TransactionModal";
+import AddTransactionModal from "@/components/AddTransactionModal";
 import { getCategoryMeta, formatCurrency } from "@/lib/data";
-import type { DbAccount, DbTransaction } from "@/lib/database.types";
+import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
 
 type Props = {
   accounts: DbAccount[];
   transactions: DbTransaction[];
+  budgets: DbBudget[];
 };
 
-export default function TransactionsClient({ accounts, transactions }: Props) {
+function toIsoDate(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+export default function TransactionsClient({ accounts, transactions, budgets }: Props) {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
+  const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
+  const [editingTx, setEditingTx] = useState<DbTransaction | null>(null);
+  const [showAddModal, setShowAddModal] = useState(false);
 
   const filtered = useMemo(() => {
+    const fromStr = toIsoDate(dateRange.from);
+    const toStr = toIsoDate(dateRange.to);
+
     let list = selectedAccount
-      ? transactions.filter((t) => t.account_id === selectedAccount)
-      : transactions;
+      ? localTxns.filter((t) => t.account_id === selectedAccount)
+      : localTxns;
+
+    // Date range filter
+    list = list.filter((t) => t.date >= fromStr && t.date < toStr);
 
     if (search.trim()) {
       const q = search.toLowerCase();
@@ -29,11 +47,23 @@ export default function TransactionsClient({ accounts, transactions }: Props) {
           (accounts.find((a) => a.id === t.account_id)?.bank_name ?? "").toLowerCase().includes(q)
       );
     }
-    return list; // already sorted date DESC from server
-  }, [selectedAccount, search, transactions, accounts]);
+    return list;
+  }, [selectedAccount, search, dateRange, localTxns, accounts]);
 
   const totalIncome = filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
   const totalExpenses = filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+
+  function handleSaveEdit(updated: DbTransaction[]) {
+    setLocalTxns(updated);
+    setEditingTx(null);
+  }
+
+  function handleAdd(newTx: DbTransaction) {
+    // Prepend and re-sort by date DESC
+    const next = [newTx, ...localTxns].sort((a, b) => b.date.localeCompare(a.date));
+    setLocalTxns(next);
+    setShowAddModal(false);
+  }
 
   return (
     <div className="flex h-full">
@@ -47,17 +77,31 @@ export default function TransactionsClient({ accounts, transactions }: Props) {
               <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
               <p className="text-sm text-gray-400 mt-0.5">{filtered.length} transactions</p>
             </div>
-            <div className="flex gap-3 text-sm">
-              <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2 text-center">
-                <p className="text-xs text-gray-400 font-medium">Income</p>
-                <p className="font-bold text-emerald-600 tabular-nums">{formatCurrency(totalIncome)}</p>
+            <div className="flex items-center gap-3">
+              <div className="flex gap-3 text-sm">
+                <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2 text-center">
+                  <p className="text-xs text-gray-400 font-medium">Income</p>
+                  <p className="font-bold text-emerald-600 tabular-nums">{formatCurrency(totalIncome)}</p>
+                </div>
+                <div className="bg-red-50 border border-red-100 rounded-lg px-4 py-2 text-center">
+                  <p className="text-xs text-gray-400 font-medium">Expenses</p>
+                  <p className="font-bold text-red-500 tabular-nums">{formatCurrency(totalExpenses)}</p>
+                </div>
               </div>
-              <div className="bg-red-50 border border-red-100 rounded-lg px-4 py-2 text-center">
-                <p className="text-xs text-gray-400 font-medium">Expenses</p>
-                <p className="font-bold text-red-500 tabular-nums">{formatCurrency(totalExpenses)}</p>
-              </div>
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Transaction
+              </button>
             </div>
           </div>
+
+          {/* Date range filter */}
+          <DateRangeFilter value={dateRange} onChange={setDateRange} />
 
           {/* Search */}
           <div className="relative">
@@ -114,17 +158,25 @@ export default function TransactionsClient({ accounts, transactions }: Props) {
                             <p className="text-gray-400 text-xs mt-0.5">{t.subcategory}</p>
                           </td>
                           <td className="px-5 py-3">
-                            {meta ? (
-                              <span
-                                className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap"
-                                style={{ backgroundColor: meta.color + "20", color: meta.color }}
-                              >
-                                <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
-                                {meta.name}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-gray-400">Income</span>
-                            )}
+                            <button
+                              onClick={() => setEditingTx(t)}
+                              className="group"
+                              title="Edit transaction"
+                            >
+                              {meta ? (
+                                <span
+                                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-opacity group-hover:opacity-75"
+                                  style={{ backgroundColor: meta.color + "20", color: meta.color }}
+                                >
+                                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
+                                  {meta.name}
+                                </span>
+                              ) : (
+                                <span className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
+                                  {t.type === "income" ? "Income" : t.category}
+                                </span>
+                              )}
+                            </button>
                           </td>
                           <td className={`px-5 py-3 text-right font-semibold tabular-nums whitespace-nowrap ${t.type === "expense" ? "text-red-500" : "text-emerald-600"}`}>
                             {t.type === "expense" ? "−" : "+"}{formatCurrency(t.amount)}
@@ -139,6 +191,27 @@ export default function TransactionsClient({ accounts, transactions }: Props) {
           </div>
         </div>
       </div>
+
+      {/* Edit/Recategorize Modal */}
+      {editingTx && (
+        <TransactionModal
+          tx={editingTx}
+          budgets={budgets}
+          allTransactions={localTxns}
+          onClose={() => setEditingTx(null)}
+          onSave={handleSaveEdit}
+        />
+      )}
+
+      {/* Add Transaction Modal */}
+      {showAddModal && (
+        <AddTransactionModal
+          accounts={accounts}
+          budgets={budgets}
+          onClose={() => setShowAddModal(false)}
+          onAdd={handleAdd}
+        />
+      )}
     </div>
   );
 }
