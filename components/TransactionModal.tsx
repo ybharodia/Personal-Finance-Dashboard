@@ -30,7 +30,6 @@ export default function TransactionModal({
 
   // Recategorization confirmation
   const [showConfirm, setShowConfirm] = useState(false);
-  const [pendingApplyAll, setPendingApplyAll] = useState(false);
 
   const categoryChanged =
     category !== tx.category || subcategory !== tx.subcategory;
@@ -104,18 +103,20 @@ export default function TransactionModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+      className="fixed inset-0 z-[999] flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.55)" }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md flex flex-col max-h-[90vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 shrink-0">
           <h2 className="text-base font-semibold text-gray-900">Edit Transaction</h2>
           <button
             onClick={onClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            className="w-8 h-8 flex items-center justify-center rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            aria-label="Close"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -123,8 +124,8 @@ export default function TransactionModal({
           </button>
         </div>
 
-        {/* Body */}
-        <div className="px-6 py-5 space-y-4">
+        {/* Body — scrollable */}
+        <div className="px-6 py-5 space-y-4 overflow-y-auto flex-1">
           {/* Date */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Date</label>
@@ -234,23 +235,27 @@ export default function TransactionModal({
         </div>
 
         {/* Footer */}
-        {!showConfirm && (
-          <div className="flex gap-3 px-6 py-4 border-t border-gray-100">
-            <button
-              onClick={onClose}
-              className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="flex-1 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50"
-            >
-              {saving ? "Saving…" : "Save Changes"}
-            </button>
-          </div>
-        )}
+        <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0 bg-white">
+          {showConfirm ? (
+            <p className="flex-1 text-xs text-gray-400 self-center">Select an option above to save.</p>
+          ) : (
+            <>
+              <button
+                onClick={onClose}
+                className="flex-1 py-2.5 text-sm font-medium text-gray-600 border border-gray-200 rounded-xl hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSave}
+                disabled={saving}
+                className="flex-1 py-2.5 text-sm font-semibold text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-50"
+              >
+                {saving ? "Saving…" : "Save Changes"}
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </div>
   );

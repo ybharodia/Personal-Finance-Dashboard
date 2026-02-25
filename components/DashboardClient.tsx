@@ -12,6 +12,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
 } from "recharts";
 
 type ViewMode = "expense" | "income" | "cashflow";
@@ -181,6 +186,28 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
       }).filter((c) => c.budgeted > 0),
     [budgets, currentMonthTxns]
   );
+
+  // ── Monthly spending for the last 12 months (bar chart) ────────────────────
+  const monthlySpending = useMemo(() => {
+    const result = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const label = d.toLocaleDateString("en-US", { month: "short" });
+      const isCurrent = i === 0;
+      const total = transactions
+        .filter((t) => {
+          if (t.type !== "expense") return false;
+          const td = new Date(t.date + "T00:00:00");
+          return td.getFullYear() === y && td.getMonth() === m;
+        })
+        .reduce((s, t) => s + t.amount, 0);
+      result.push({ label, total, isCurrent });
+    }
+    return result;
+  }, [transactions]);
 
   return (
     <div className="flex h-full">
@@ -404,6 +431,48 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
                 ))}
               </div>
             )}
+
+            {/* Monthly spending bar chart — last 12 months */}
+            <div className="mt-5 border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Monthly Spending
+                </h3>
+                <span className="text-xs text-gray-400">Last 12 months</span>
+              </div>
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart data={monthlySpending} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis hide />
+                  <Tooltip
+                    formatter={(v: number | undefined) => [formatCurrency(v ?? 0), "Spending"]}
+                    contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                    cursor={{ fill: "#f9fafb" }}
+                  />
+                  <Bar dataKey="total" radius={[3, 3, 0, 0]} maxBarSize={32}>
+                    {monthlySpending.map((entry, i) => (
+                      <Cell key={i} fill={entry.isCurrent ? "#6366f1" : "#c7d2fe"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="flex items-center gap-4 mt-1 justify-end">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: "#6366f1" }} />
+                  <span className="text-xs text-gray-400">Current month</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: "#c7d2fe" }} />
+                  <span className="text-xs text-gray-400">Past months</span>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
