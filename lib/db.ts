@@ -1,0 +1,54 @@
+import { supabase } from "./supabase";
+import type { DbAccount, DbTransaction, DbBudget } from "./database.types";
+
+const TAG = "[db]";
+
+export async function getAccounts(): Promise<DbAccount[]> {
+  console.log(TAG, "getAccounts — url:", process.env.NEXT_PUBLIC_SUPABASE_URL);
+  const { data, error } = await supabase
+    .from("accounts")
+    .select("*")
+    .order("bank_name");
+  console.log(TAG, "getAccounts — error:", error, "| count:", data?.length ?? 0);
+  if (error) throw new Error(`getAccounts: ${error.message}`);
+  return data ?? [];
+}
+
+export async function getTransactions(
+  month: number,
+  year: number
+): Promise<DbTransaction[]> {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const start = `${year}-${pad(month)}-01`;
+  // Use the first day of the next month as an exclusive upper bound — works correctly
+  // for every month including February, regardless of leap year.
+  const nextMonth = month === 12 ? 1 : month + 1;
+  const nextYear = month === 12 ? year + 1 : year;
+  const end = `${nextYear}-${pad(nextMonth)}-01`;
+
+  console.log(TAG, `getTransactions — range: ${start} → <${end}`);
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .gte("date", start)
+    .lt("date", end)
+    .order("date", { ascending: false });
+  console.log(TAG, "getTransactions — error:", error, "| count:", data?.length ?? 0);
+  if (error) throw new Error(`getTransactions: ${error.message}`);
+  return data ?? [];
+}
+
+export async function getBudgets(
+  month: number,
+  year: number
+): Promise<DbBudget[]> {
+  console.log(TAG, `getBudgets — month: ${month}, year: ${year}`);
+  const { data, error } = await supabase
+    .from("budgets")
+    .select("*")
+    .eq("month", month)
+    .eq("year", year);
+  console.log(TAG, "getBudgets — error:", error, "| count:", data?.length ?? 0);
+  if (error) throw new Error(`getBudgets: ${error.message}`);
+  return data ?? [];
+}
