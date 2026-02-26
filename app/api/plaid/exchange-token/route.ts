@@ -14,10 +14,13 @@ function mapAccountType(
 }
 
 export async function POST(req: NextRequest) {
-  // Use admin client (service-role key) so RLS doesn't block writes
-  const db = createAdminClient();
-
   try {
+    // Keep createAdminClient() inside try so a missing SUPABASE_SERVICE_ROLE_KEY
+    // env var is caught here and returned as JSON rather than crashing the route
+    // with an unhandled throw that produces an HTML 500 (which the client can't
+    // parse, causing the fallback "Exchange failed" message).
+    const db = createAdminClient();
+
     const { public_token, institution_name } = await req.json();
 
     // 1. Exchange public token → access token
