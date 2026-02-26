@@ -41,8 +41,10 @@ export default function TransactionModal({
   // Recategorization confirmation
   const [showConfirm, setShowConfirm] = useState(false);
 
+  // Category changes are only meaningful for income/expense transactions
   const categoryChanged =
-    category !== tx.category || subcategory !== tx.subcategory;
+    type !== "transfer" &&
+    (category !== tx.category || subcategory !== tx.subcategory);
 
   const subcategoryOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -198,41 +200,44 @@ export default function TransactionModal({
             </div>
           </div>
 
-          {/* Category */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Category</label>
-            <select
-              value={category}
-              onChange={(e) => {
-                setCategory(e.target.value);
-                setSubcategory(""); // reset subcategory when category changes
-              }}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-            >
-              {BUDGET_CATEGORIES.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-              {/* If current category isn't in BUDGET_CATEGORIES */}
-              {!BUDGET_CATEGORIES.find((c) => c.id === tx.category) && (
-                <option value={tx.category}>{tx.category}</option>
-              )}
-            </select>
-          </div>
+          {/* Category + Subcategory — hidden for transfers */}
+          {type !== "transfer" && (
+            <>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Category</label>
+                <select
+                  value={category}
+                  onChange={(e) => {
+                    setCategory(e.target.value);
+                    setSubcategory(""); // reset subcategory when category changes
+                  }}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                >
+                  {BUDGET_CATEGORIES.map((c) => (
+                    <option key={c.id} value={c.id}>{c.name}</option>
+                  ))}
+                  {/* If current category isn't in BUDGET_CATEGORIES */}
+                  {!BUDGET_CATEGORIES.find((c) => c.id === tx.category) && (
+                    <option value={tx.category}>{tx.category}</option>
+                  )}
+                </select>
+              </div>
 
-          {/* Subcategory */}
-          <div>
-            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Subcategory</label>
-            <select
-              value={subcategory}
-              onChange={(e) => setSubcategory(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
-            >
-              <option value="">— Select subcategory —</option>
-              {subcategoryOptions.map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-          </div>
+              <div>
+                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Subcategory</label>
+                <select
+                  value={subcategory}
+                  onChange={(e) => setSubcategory(e.target.value)}
+                  className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+                >
+                  <option value="">— Select subcategory —</option>
+                  {subcategoryOptions.map((s) => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+            </>
+          )}
 
           {error && (
             <p className="text-xs text-red-500">{error}</p>
