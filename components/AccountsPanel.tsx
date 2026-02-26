@@ -164,7 +164,7 @@ export default function AccountsPanel({ accounts, selectedAccount, onSelect }: P
   }));
 
   return (
-    <aside className="w-64 shrink-0 bg-white border-r border-gray-200 flex flex-col">
+    <aside className="hidden md:flex w-64 shrink-0 bg-white border-r border-gray-200 flex-col">
       {/* All accounts toggle */}
       <div className="px-3 pt-3 shrink-0">
         <button

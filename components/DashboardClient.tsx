@@ -214,7 +214,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
       <AccountsPanel accounts={accounts} selectedAccount={selectedAccount} onSelect={setSelectedAccount} />
 
       <div className="flex-1 overflow-y-auto bg-gray-50">
-        <div className="p-6 space-y-6">
+        <div className="p-4 md:p-6 space-y-4 md:space-y-6">
           {/* Header */}
           <div className="flex items-start justify-between">
             <div>
@@ -227,7 +227,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
           <DateRangeFilter value={dateRange} onChange={setDateRange} />
 
           {/* Summary cards */}
-          <div className="grid grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {[
               { label: "Total Income", value: totalIncome, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
               { label: "Total Expenses", value: totalExpenses, color: "text-red-500", bg: "bg-red-50", border: "border-red-100" },
