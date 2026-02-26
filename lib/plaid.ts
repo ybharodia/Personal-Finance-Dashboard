@@ -6,12 +6,21 @@ if (!PlaidEnvironments[env]) {
   throw new Error(`Invalid PLAID_ENV "${env}". Must be sandbox | development | production.`);
 }
 
+if (!process.env.PLAID_CLIENT_ID) {
+  console.warn("[plaid] WARNING: PLAID_CLIENT_ID is not set — API calls will fail");
+}
+if (!process.env.PLAID_SECRET) {
+  console.warn("[plaid] WARNING: PLAID_SECRET is not set — API calls will fail");
+}
+
+console.log(`[plaid] env: ${env}`);
+
 const configuration = new Configuration({
   basePath: PlaidEnvironments[env],
   baseOptions: {
     headers: {
-      "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID!,
-      "PLAID-SECRET": process.env.PLAID_SECRET!,
+      "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID ?? "",
+      "PLAID-SECRET": process.env.PLAID_SECRET ?? "",
     },
   },
 });

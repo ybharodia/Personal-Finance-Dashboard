@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
-import { supabase } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 import type { AccountType, AccountSubtype } from "plaid";
 
 function mapAccountType(
@@ -14,6 +14,9 @@ function mapAccountType(
 }
 
 export async function POST(req: NextRequest) {
+  // Use admin client (service-role key) so RLS doesn't block writes
+  const db = createAdminClient();
+
   try {
     const { public_token, institution_name } = await req.json();
 
@@ -32,22 +35,35 @@ export async function POST(req: NextRequest) {
     }));
 
     if (accountRows.length > 0) {
-      const { error: acctErr } = await supabase
+      const { error: acctErr } = await db
         .from("accounts")
         .upsert(accountRows, { onConflict: "id" });
-      if (acctErr) console.error("[plaid] upsert accounts:", acctErr.message);
+      if (acctErr) {
+        console.error("[plaid] upsert accounts:", acctErr.message);
+        throw new Error(`upsert accounts: ${acctErr.message}`);
+      }
     }
 
     // 3. Store Plaid item (access token + item_id) in Supabase
-    const { error: itemErr } = await supabase
+    const { error: itemErr } = await db
       .from("plaid_items")
       .upsert({ access_token, item_id, institution_name }, { onConflict: "item_id" });
     if (itemErr) throw new Error(`plaid_items upsert: ${itemErr.message}`);
 
+    console.log(`[plaid] exchange-token: item ${item_id}, ${accountRows.length} account(s)`);
     return NextResponse.json({ success: true, item_id, accounts_added: accountRows.length });
   } catch (err: any) {
-    const detail = err.response?.data ?? err.message;
-    console.error("[plaid] exchange-token:", detail);
+    const plaidData = err?.response?.data;
+    console.error(
+      "[plaid] exchange-token error:",
+      plaidData
+        ? `${plaidData.error_type}/${plaidData.error_code}: ${plaidData.error_message}`
+        : err?.message
+    );
+    if (plaidData) {
+      console.error("[plaid] full error payload:", JSON.stringify(plaidData, null, 2));
+    }
+    const detail = plaidData ?? err?.message;
     return NextResponse.json({ error: "Token exchange failed", detail }, { status: 500 });
   }
 }

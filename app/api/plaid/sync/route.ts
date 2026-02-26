@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
-import { supabase } from "@/lib/supabase";
+import { createAdminClient } from "@/lib/supabase";
 import type { Transaction, RemovedTransaction } from "plaid";
 
 // ── Category mapping ─────────────────────────────────────────────────────────
@@ -56,12 +56,23 @@ function mapTransaction(t: Transaction) {
   };
 }
 
+function plaidErrorDetail(err: any) {
+  const data = err?.response?.data;
+  if (data?.error_code) {
+    return `${data.error_type}/${data.error_code}: ${data.error_message}`;
+  }
+  return err?.message ?? String(err);
+}
+
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST() {
+  // Use admin client (service-role key) so RLS doesn't block reads/writes
+  const db = createAdminClient();
+
   try {
     // Fetch all stored Plaid items
-    const { data: items, error: itemsErr } = await supabase
+    const { data: items, error: itemsErr } = await db
       .from("plaid_items")
       .select("access_token, item_id, cursor");
 
@@ -70,52 +81,81 @@ export async function POST() {
       return NextResponse.json({ synced: 0, message: "No connected accounts" });
     }
 
+    console.log(`[plaid] starting sync for ${items.length} item(s)`);
+
     let totalSynced = 0;
+    const itemErrors: string[] = [];
 
     for (const item of items) {
-      const added: Transaction[]         = [];
-      const modified: Transaction[]      = [];
+      if (!item.access_token) {
+        console.warn(`[plaid] skipping item ${item.item_id}: missing access_token`);
+        continue;
+      }
+
+      const added: Transaction[]          = [];
+      const modified: Transaction[]       = [];
       const removed: RemovedTransaction[] = [];
 
       let cursor: string | undefined = item.cursor ?? undefined;
 
-      // Paginate through all pages of the sync response
-      while (true) {
-        const res = await plaidClient.transactionsSync({
-          access_token: item.access_token,
-          cursor,
-          options: { include_personal_finance_category: true },
-        });
-        const d = res.data;
+      try {
+        // Paginate through all pages of the sync response
+        while (true) {
+          const res = await plaidClient.transactionsSync({
+            access_token: item.access_token,
+            cursor,
+            options: { include_personal_finance_category: true },
+          });
+          const d = res.data;
 
-        added.push(...d.added);
-        modified.push(...(d.modified ?? []));
-        removed.push(...(d.removed ?? []));
+          added.push(...d.added);
+          modified.push(...(d.modified ?? []));
+          removed.push(...(d.removed ?? []));
 
-        cursor = d.next_cursor;
-        if (!d.has_more) break;
+          cursor = d.next_cursor;
+          if (!d.has_more) break;
+        }
+      } catch (plaidErr: any) {
+        const msg = plaidErrorDetail(plaidErr);
+        console.error(`[plaid] transactionsSync failed for item ${item.item_id}: ${msg}`);
+        // Log the full Plaid error payload for debugging
+        if (plaidErr?.response?.data) {
+          console.error("[plaid] full error payload:", JSON.stringify(plaidErr.response.data, null, 2));
+        }
+        itemErrors.push(`${item.item_id}: ${msg}`);
+        continue; // keep going for other items rather than aborting everything
       }
 
       // Persist updated cursor so future syncs only fetch deltas
-      await supabase
+      const { error: cursorErr } = await db
         .from("plaid_items")
         .update({ cursor })
         .eq("item_id", item.item_id);
+      if (cursorErr) {
+        console.error(`[plaid] failed to update cursor for ${item.item_id}: ${cursorErr.message}`);
+      }
 
       // Upsert added + modified transactions
       const toUpsert = [...added, ...modified].map(mapTransaction);
       if (toUpsert.length > 0) {
-        const { error: upsertErr } = await supabase
+        const { error: upsertErr } = await db
           .from("transactions")
           .upsert(toUpsert, { onConflict: "id" });
-        if (upsertErr) console.error("[plaid] upsert transactions:", upsertErr.message);
-        totalSynced += toUpsert.length;
+        if (upsertErr) {
+          console.error(`[plaid] upsert transactions for ${item.item_id}: ${upsertErr.message}`);
+          itemErrors.push(`${item.item_id} upsert: ${upsertErr.message}`);
+        } else {
+          totalSynced += toUpsert.length;
+        }
       }
 
       // Hard-delete transactions Plaid has removed
       if (removed.length > 0) {
         const ids = removed.map((r) => r.transaction_id);
-        await supabase.from("transactions").delete().in("id", ids);
+        const { error: deleteErr } = await db.from("transactions").delete().in("id", ids);
+        if (deleteErr) {
+          console.error(`[plaid] delete transactions for ${item.item_id}: ${deleteErr.message}`);
+        }
       }
 
       console.log(
@@ -123,10 +163,18 @@ export async function POST() {
       );
     }
 
+    if (itemErrors.length > 0) {
+      return NextResponse.json(
+        { synced: totalSynced, errors: itemErrors },
+        { status: 207 }
+      );
+    }
+
     return NextResponse.json({ synced: totalSynced });
   } catch (err: any) {
-    const detail = err.response?.data ?? err.message;
-    console.error("[plaid] sync error:", detail);
+    const msg = plaidErrorDetail(err);
+    console.error("[plaid] sync fatal error:", msg);
+    const detail = err?.response?.data ?? err?.message;
     return NextResponse.json({ error: "Sync failed", detail }, { status: 500 });
   }
 }
