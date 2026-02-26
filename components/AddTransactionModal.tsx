@@ -208,19 +208,16 @@ export default function AddTransactionModal({ accounts, budgets, onClose, onAdd 
           {/* Subcategory */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Subcategory</label>
-            <input
-              type="text"
-              list="add-subcategory-list"
+            <select
               value={subcategory}
               onChange={(e) => setSubcategory(e.target.value)}
-              placeholder={subcategoryOptions[0] ?? "Enter subcategory…"}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <datalist id="add-subcategory-list">
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+            >
+              <option value="">— Select subcategory —</option>
               {subcategoryOptions.map((s) => (
-                <option key={s} value={s} />
+                <option key={s} value={s}>{s}</option>
               ))}
-            </datalist>
+            </select>
           </div>
 
           {error && (

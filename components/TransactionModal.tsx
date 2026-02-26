@@ -24,7 +24,16 @@ export default function TransactionModal({
   const [description, setDescription] = useState(tx.description);
   const [amount, setAmount] = useState(String(tx.amount));
   const [category, setCategory] = useState(tx.category);
-  const [subcategory, setSubcategory] = useState(tx.subcategory);
+
+  // Validate tx.subcategory against the known options for its category.
+  // If Plaid sent a value not in our pre-defined list, start blank.
+  const [subcategory, setSubcategory] = useState(() => {
+    const validOptions = budgets
+      .filter((b) => b.category === tx.category)
+      .map((b) => b.subcategory)
+      .filter((s, i, arr) => arr.indexOf(s) === i);
+    return validOptions.includes(tx.subcategory) ? tx.subcategory : "";
+  });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -188,19 +197,16 @@ export default function TransactionModal({
           {/* Subcategory */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Subcategory</label>
-            <input
-              type="text"
-              list="subcategory-list"
+            <select
               value={subcategory}
               onChange={(e) => setSubcategory(e.target.value)}
-              placeholder={subcategoryOptions[0] ?? "Enter subcategory…"}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-            />
-            <datalist id="subcategory-list">
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
+            >
+              <option value="">— Select subcategory —</option>
               {subcategoryOptions.map((s) => (
-                <option key={s} value={s} />
+                <option key={s} value={s}>{s}</option>
               ))}
-            </datalist>
+            </select>
           </div>
 
           {error && (
