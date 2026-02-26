@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
 import { createAdminClient } from "@/lib/supabase";
-import type { Transaction, RemovedTransaction } from "plaid";
+import type { Transaction, RemovedTransaction, AccountType, AccountSubtype } from "plaid";
 
 // ── Category mapping ─────────────────────────────────────────────────────────
 // Maps Plaid's personal_finance_category.primary → our category IDs in lib/data.ts
@@ -24,6 +24,16 @@ const CATEGORY_MAP: Record<string, string> = {
   TRAVEL:                     "transportation",
   RENT_AND_UTILITIES:         "housing",
 };
+
+function mapAccountType(
+  type: AccountType,
+  subtype: AccountSubtype | null
+): "checking" | "savings" | "credit" {
+  if (type === "credit") return "credit";
+  const savingsSubtypes = ["savings", "money market", "cd", "ira"];
+  if (subtype && savingsSubtypes.includes(subtype)) return "savings";
+  return "checking";
+}
 
 function toTitleCase(s: string) {
   return s
@@ -74,7 +84,7 @@ export async function POST() {
     // Fetch all stored Plaid items
     const { data: items, error: itemsErr } = await db
       .from("plaid_items")
-      .select("access_token, item_id, cursor");
+      .select("access_token, item_id, cursor, institution_name");
 
     if (itemsErr) throw new Error(`Fetch plaid_items: ${itemsErr.message}`);
     if (!items?.length) {
@@ -156,6 +166,28 @@ export async function POST() {
         if (deleteErr) {
           console.error(`[plaid] delete transactions for ${item.item_id}: ${deleteErr.message}`);
         }
+      }
+
+      // Refresh account balances for this item
+      try {
+        const accountsRes = await plaidClient.accountsGet({ access_token: item.access_token });
+        const accountRows = accountsRes.data.accounts.map((a) => ({
+          id: a.account_id,
+          bank_name: item.institution_name ?? "",
+          name: a.name,
+          type: mapAccountType(a.type, a.subtype ?? null),
+          balance: a.balances.current ?? 0,
+        }));
+        if (accountRows.length > 0) {
+          const { error: acctErr } = await db
+            .from("accounts")
+            .upsert(accountRows, { onConflict: "id" });
+          if (acctErr) {
+            console.error(`[plaid] upsert accounts for ${item.item_id}: ${acctErr.message}`);
+          }
+        }
+      } catch (acctErr: any) {
+        console.error(`[plaid] accountsGet failed for ${item.item_id}: ${acctErr?.message}`);
       }
 
       console.log(

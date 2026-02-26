@@ -45,6 +45,30 @@ export async function POST(req: NextRequest) {
         console.error("[plaid] upsert accounts:", acctErr.message);
         throw new Error(`upsert accounts: ${acctErr.message}`);
       }
+
+      // Remove stale accounts from previous connections for this institution.
+      // When Chase is reconnected, Plaid may issue new account_ids — old rows
+      // never get cleaned up and accumulate as duplicates. Delete any account
+      // for this bank whose id is no longer in the current Plaid response.
+      const newAccountIds = accountRows.map((r) => r.id);
+      const { data: existingAccounts } = await db
+        .from("accounts")
+        .select("id")
+        .eq("bank_name", institution_name);
+      const staleIds = (existingAccounts ?? [])
+        .map((a) => a.id)
+        .filter((id) => !newAccountIds.includes(id));
+      if (staleIds.length > 0) {
+        const { error: staleErr } = await db
+          .from("accounts")
+          .delete()
+          .in("id", staleIds);
+        if (staleErr) {
+          console.warn("[plaid] could not remove stale accounts:", staleErr.message);
+        } else {
+          console.log(`[plaid] exchange-token: removed ${staleIds.length} stale account(s) for ${institution_name}`);
+        }
+      }
     }
 
     // 3. Remove any stale plaid_items for this institution (handles reconnects and
