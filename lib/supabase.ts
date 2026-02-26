@@ -1,17 +1,13 @@
+import { createBrowserClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "./database.types";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-// Pass cache: 'no-store' so Next.js's fetch wrapper never serves a stale
-// cached response (e.g. empty arrays from before the tables were seeded).
-export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
-  global: {
-    fetch: (url, options = {}) =>
-      fetch(url, { ...options, cache: "no-store" }),
-  },
-});
+// Browser client — uses cookies so the middleware can read the auth session.
+// Safe to call at module level in "use client" files.
+export const supabase = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
 
 /** Server-side admin client — only use in server components / scripts, never in "use client" files. */
 export function createAdminClient() {
