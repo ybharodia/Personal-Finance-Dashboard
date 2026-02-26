@@ -3,3 +3,27 @@
 body {
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* iOS PWA safe area utilities — required for Dynamic Island / notch support */
+.safe-area-top {
+  padding-top: env(safe-area-inset-top);
+}
+
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+/*
+ * Mobile main content area bottom padding:
+ * 4rem = bottom nav height, plus env(safe-area-inset-bottom) for the home indicator.
+ * Overridden to 0 on md+ (desktop, no bottom nav).
+ */
+.main-pb {
+  padding-bottom: calc(4rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .main-pb {
+    padding-bottom: 0;
+  }
+}
