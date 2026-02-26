@@ -33,11 +33,15 @@ export async function middleware(request: NextRequest) {
 
   const { pathname } = request.nextUrl;
 
-  // Allow static files and Next.js internals through
+  // Allow static files, Next.js internals, and PWA assets through
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api/") ||
-    pathname === "/favicon.ico"
+    pathname === "/favicon.ico" ||
+    pathname === "/sw.js" ||
+    pathname === "/manifest.webmanifest" ||
+    pathname === "/icon" ||
+    pathname === "/apple-icon"
   ) {
     return supabaseResponse;
   }
