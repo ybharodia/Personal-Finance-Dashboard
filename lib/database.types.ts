@@ -8,6 +8,8 @@ export type Database = {
           name: string;
           type: "checking" | "savings" | "credit";
           balance: number;
+          plaid_account_id: string;
+          custom_name: string | null;
         };
         Insert: {
           id: string;
@@ -15,6 +17,8 @@ export type Database = {
           name: string;
           type: "checking" | "savings" | "credit";
           balance: number;
+          plaid_account_id: string;
+          custom_name?: string | null;
         };
         Update: {
           id?: string;
@@ -22,6 +26,8 @@ export type Database = {
           name?: string;
           type?: "checking" | "savings" | "credit";
           balance?: number;
+          plaid_account_id?: string;
+          custom_name?: string | null;
         };
         Relationships: [];
       };

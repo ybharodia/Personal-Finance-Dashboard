@@ -173,6 +173,7 @@ export async function POST() {
         const accountsRes = await plaidClient.accountsGet({ access_token: item.access_token });
         const accountRows = accountsRes.data.accounts.map((a) => ({
           id: a.account_id,
+          plaid_account_id: a.account_id,
           bank_name: item.institution_name ?? "",
           name: a.name,
           type: mapAccountType(a.type, a.subtype ?? null),
@@ -181,9 +182,30 @@ export async function POST() {
         if (accountRows.length > 0) {
           const { error: acctErr } = await db
             .from("accounts")
-            .upsert(accountRows, { onConflict: "id" });
+            .upsert(accountRows, { onConflict: "plaid_account_id" });
           if (acctErr) {
             console.error(`[plaid] upsert accounts for ${item.item_id}: ${acctErr.message}`);
+          } else {
+            // Remove stale accounts for this institution that Plaid no longer returns.
+            // This handles reconnects where Plaid issues new account_ids for existing accounts.
+            const newPlaidIds = accountRows.map((r) => r.plaid_account_id);
+            const { data: existing } = await db
+              .from("accounts")
+              .select("id")
+              .eq("bank_name", item.institution_name ?? "")
+              .not("plaid_account_id", "in", `(${newPlaidIds.map((id) => `"${id}"`).join(",")})`);
+            const staleIds = (existing ?? []).map((a) => a.id);
+            if (staleIds.length > 0) {
+              const { error: staleErr } = await db
+                .from("accounts")
+                .delete()
+                .in("id", staleIds);
+              if (staleErr) {
+                console.warn(`[plaid] could not remove stale accounts for ${item.item_id}: ${staleErr.message}`);
+              } else {
+                console.log(`[plaid] sync: removed ${staleIds.length} stale account(s) for ${item.institution_name}`);
+              }
+            }
           }
         }
       } catch (acctErr: any) {

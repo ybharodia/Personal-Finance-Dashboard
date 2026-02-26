@@ -31,6 +31,7 @@ export async function POST(req: NextRequest) {
     const accountsRes = await plaidClient.accountsGet({ access_token });
     const accountRows = accountsRes.data.accounts.map((a) => ({
       id: a.account_id,
+      plaid_account_id: a.account_id,
       bank_name: institution_name,
       name: a.name,
       type: mapAccountType(a.type, a.subtype ?? null),
@@ -40,7 +41,7 @@ export async function POST(req: NextRequest) {
     if (accountRows.length > 0) {
       const { error: acctErr } = await db
         .from("accounts")
-        .upsert(accountRows, { onConflict: "id" });
+        .upsert(accountRows, { onConflict: "plaid_account_id" });
       if (acctErr) {
         console.error("[plaid] upsert accounts:", acctErr.message);
         throw new Error(`upsert accounts: ${acctErr.message}`);

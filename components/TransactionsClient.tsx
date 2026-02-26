@@ -151,7 +151,7 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
                           <td className="px-5 py-3 text-gray-500 whitespace-nowrap font-mono text-xs">{t.date}</td>
                           <td className="px-5 py-3 whitespace-nowrap">
                             <p className="text-xs font-medium text-gray-700">{acct?.bank_name}</p>
-                            <p className="text-gray-400" style={{ fontSize: 11 }}>{acct?.name}</p>
+                            <p className="text-gray-400" style={{ fontSize: 11 }}>{acct ? (acct.custom_name?.trim() || acct.name) : ""}</p>
                           </td>
                           <td className="px-5 py-3 text-gray-700 max-w-xs">
                             <p className="truncate">{t.description}</p>

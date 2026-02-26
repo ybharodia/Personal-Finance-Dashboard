@@ -404,7 +404,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
                           <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{t.date}</td>
                           <td className="px-5 py-3 whitespace-nowrap">
                             <span className="text-xs text-gray-600">{acct?.bank_name}</span>
-                            <span className="block text-gray-400" style={{ fontSize: 11 }}>{acct?.name}</span>
+                            <span className="block text-gray-400" style={{ fontSize: 11 }}>{acct ? (acct.custom_name?.trim() || acct.name) : ""}</span>
                           </td>
                           <td className="px-5 py-3 text-gray-700">{t.description}</td>
                           <td className="px-5 py-3">

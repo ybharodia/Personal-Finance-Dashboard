@@ -126,7 +126,7 @@ export default function AddTransactionModal({ accounts, budgets, onClose, onAdd 
             >
               {accounts.map((a) => (
                 <option key={a.id} value={a.id}>
-                  {a.bank_name} — {a.name}
+                  {a.bank_name} — {a.custom_name?.trim() || a.name}
                 </option>
               ))}
             </select>
