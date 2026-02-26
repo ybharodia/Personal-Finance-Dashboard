@@ -60,11 +60,31 @@ function ConnectButton({ onStatusChange }: ConnectButtonProps) {
             institution_name: metadata.institution?.name ?? "Connected Bank",
           }),
         });
-        if (!exchRes.ok) throw new Error("exchange-token failed");
+        if (!exchRes.ok) {
+          const body = await exchRes.json().catch(() => ({}));
+          const detail = body.detail;
+          const msg =
+            typeof detail === "string"
+              ? detail
+              : detail?.error_message
+              ? `${detail.error_code}: ${detail.error_message}`
+              : body.error ?? "Exchange failed";
+          throw new Error(msg);
+        }
 
         // Pull transactions from Plaid into Supabase
         const syncRes = await fetch("/api/plaid/sync", { method: "POST" });
-        if (!syncRes.ok) throw new Error("sync failed");
+        if (!syncRes.ok) {
+          const body = await syncRes.json().catch(() => ({}));
+          const detail = body.detail;
+          const msg =
+            typeof detail === "string"
+              ? detail
+              : detail?.error_message
+              ? `${detail.error_code}: ${detail.error_message}`
+              : body.error ?? "Sync failed";
+          throw new Error(msg);
+        }
 
         updateStatus("done");
 

@@ -44,7 +44,19 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // 3. Store Plaid item (access token + item_id) in Supabase
+    // 3. Remove any stale plaid_items for this institution (handles reconnects and
+    //    partial-failure duplicates where a previous attempt got a different item_id).
+    const { error: deleteErr } = await db
+      .from("plaid_items")
+      .delete()
+      .eq("institution_name", institution_name)
+      .neq("item_id", item_id);
+    if (deleteErr) {
+      // Non-fatal — a stale item is worse than a logged warning
+      console.warn("[plaid] could not remove stale plaid_items:", deleteErr.message);
+    }
+
+    // 4. Upsert the new (or re-connected) Plaid item
     const { error: itemErr } = await db
       .from("plaid_items")
       .upsert({ access_token, item_id, institution_name }, { onConflict: "item_id" });
