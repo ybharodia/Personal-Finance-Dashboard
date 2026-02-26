@@ -244,7 +244,7 @@ export default function BudgetsClient({ accounts, transactions, budgets }: Props
 
   return (
     <div className="flex-1 overflow-y-auto bg-gray-50">
-      <div className="p-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-4 md:space-y-6">
         {/* Header */}
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Budgets</h1>
@@ -252,7 +252,7 @@ export default function BudgetsClient({ accounts, transactions, budgets }: Props
         </div>
 
         {/* Summary cards */}
-        <div className="grid grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="bg-white border border-gray-200 rounded-xl px-5 py-4 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">Total Budgeted</p>
             <p className="text-2xl font-bold text-gray-800 tabular-nums">{formatCurrency(totalBudgeted)}</p>

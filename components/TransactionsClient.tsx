@@ -70,9 +70,9 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
       <AccountsPanel accounts={accounts} selectedAccount={selectedAccount} onSelect={setSelectedAccount} />
 
       <div className="flex-1 overflow-y-auto bg-gray-50">
-        <div className="p-6 space-y-5">
+        <div className="p-4 md:p-6 space-y-4 md:space-y-5">
           {/* Header */}
-          <div className="flex items-start justify-between">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
               <p className="text-sm text-gray-400 mt-0.5">{filtered.length} transactions</p>
