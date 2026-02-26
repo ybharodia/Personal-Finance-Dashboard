@@ -19,7 +19,7 @@ export default function AddTransactionModal({ accounts, budgets, onClose, onAdd 
   const [accountId, setAccountId] = useState(accounts[0]?.id ?? "");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
-  const [type, setType] = useState<"expense" | "income">("expense");
+  const [type, setType] = useState<"expense" | "income" | "transfer">("expense");
   const [category, setCategory] = useState(BUDGET_CATEGORIES[0]?.id ?? "");
   const [subcategory, setSubcategory] = useState("");
   const [saving, setSaving] = useState(false);
@@ -166,7 +166,7 @@ export default function AddTransactionModal({ accounts, budgets, onClose, onAdd 
               <div className="flex rounded-lg border border-gray-200 overflow-hidden">
                 <button
                   onClick={() => setType("expense")}
-                  className={`px-4 py-2 text-xs font-semibold transition-colors ${
+                  className={`px-3 py-2 text-xs font-semibold transition-colors ${
                     type === "expense"
                       ? "bg-red-500 text-white"
                       : "bg-white text-gray-500 hover:bg-gray-50"
@@ -176,13 +176,23 @@ export default function AddTransactionModal({ accounts, budgets, onClose, onAdd 
                 </button>
                 <button
                   onClick={() => setType("income")}
-                  className={`px-4 py-2 text-xs font-semibold transition-colors ${
+                  className={`px-3 py-2 text-xs font-semibold transition-colors ${
                     type === "income"
                       ? "bg-emerald-500 text-white"
                       : "bg-white text-gray-500 hover:bg-gray-50"
                   }`}
                 >
                   Income
+                </button>
+                <button
+                  onClick={() => setType("transfer")}
+                  className={`px-3 py-2 text-xs font-semibold transition-colors ${
+                    type === "transfer"
+                      ? "bg-blue-500 text-white"
+                      : "bg-white text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  Transfer
                 </button>
               </div>
             </div>

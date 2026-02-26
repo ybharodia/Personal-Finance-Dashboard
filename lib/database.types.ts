@@ -40,7 +40,7 @@ export type Database = {
           category: string;
           subcategory: string;
           amount: number;
-          type: "income" | "expense";
+          type: "income" | "expense" | "transfer";
         };
         Insert: {
           id: string;
@@ -50,7 +50,7 @@ export type Database = {
           category: string;
           subcategory: string;
           amount: number;
-          type: "income" | "expense";
+          type: "income" | "expense" | "transfer";
         };
         Update: {
           id?: string;
@@ -60,7 +60,7 @@ export type Database = {
           category?: string;
           subcategory?: string;
           amount?: number;
-          type?: "income" | "expense";
+          type?: "income" | "expense" | "transfer";
         };
         Relationships: [];
       };

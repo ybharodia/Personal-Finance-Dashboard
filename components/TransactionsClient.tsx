@@ -163,7 +163,12 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
                               className="group"
                               title="Edit transaction"
                             >
-                              {meta ? (
+                              {t.type === "transfer" ? (
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-opacity group-hover:opacity-75 bg-blue-50 text-blue-500">
+                                  <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-blue-500" />
+                                  Transfer
+                                </span>
+                              ) : meta ? (
                                 <span
                                   className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-opacity group-hover:opacity-75"
                                   style={{ backgroundColor: meta.color + "20", color: meta.color }}
@@ -178,8 +183,8 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
                               )}
                             </button>
                           </td>
-                          <td className={`px-5 py-3 text-right font-semibold tabular-nums whitespace-nowrap ${t.type === "expense" ? "text-red-500" : "text-emerald-600"}`}>
-                            {t.type === "expense" ? "−" : "+"}{formatCurrency(t.amount)}
+                          <td className={`px-5 py-3 text-right font-semibold tabular-nums whitespace-nowrap ${t.type === "expense" ? "text-red-500" : t.type === "income" ? "text-emerald-600" : "text-blue-500"}`}>
+                            {t.type === "expense" ? "−" : t.type === "income" ? "+" : "⇄"}{formatCurrency(t.amount)}
                           </td>
                         </tr>
                       );

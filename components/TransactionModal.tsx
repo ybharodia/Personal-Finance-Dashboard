@@ -23,6 +23,7 @@ export default function TransactionModal({
   const [date, setDate] = useState(tx.date);
   const [description, setDescription] = useState(tx.description);
   const [amount, setAmount] = useState(String(tx.amount));
+  const [type, setType] = useState<"income" | "expense" | "transfer">(tx.type);
   const [category, setCategory] = useState(tx.category);
 
   // Validate tx.subcategory against the known options for its category.
@@ -79,14 +80,14 @@ export default function TransactionModal({
       // Always update the specific transaction with all changed fields
       const { error: singleErr } = await supabase
         .from("transactions")
-        .update({ date, description, amount: parsedAmount, category, subcategory })
+        .update({ date, description, amount: parsedAmount, type, category, subcategory })
         .eq("id", tx.id);
       if (singleErr) throw singleErr;
 
       // Build updated local list
       const updated = allTransactions.map((t) => {
         if (t.id === tx.id) {
-          return { ...t, date, description, amount: parsedAmount, category, subcategory };
+          return { ...t, date, description, amount: parsedAmount, type, category, subcategory };
         }
         if (applyToAll && t.description === tx.description) {
           return { ...t, category, subcategory };
@@ -170,6 +171,30 @@ export default function TransactionModal({
                 onChange={(e) => setAmount(e.target.value)}
                 className="w-full border border-gray-200 rounded-lg pl-7 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
               />
+            </div>
+          </div>
+
+          {/* Type */}
+          <div>
+            <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1">Type</label>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+              {(["expense", "income", "transfer"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setType(t)}
+                  className={`flex-1 py-2 text-xs font-semibold transition-colors ${
+                    type === t
+                      ? t === "expense"
+                        ? "bg-red-500 text-white"
+                        : t === "income"
+                        ? "bg-emerald-500 text-white"
+                        : "bg-blue-500 text-white"
+                      : "bg-white text-gray-500 hover:bg-gray-50"
+                  }`}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
             </div>
           </div>
 

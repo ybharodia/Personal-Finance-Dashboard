@@ -25,6 +25,42 @@ const CATEGORY_MAP: Record<string, string> = {
   RENT_AND_UTILITIES:         "housing",
 };
 
+// Plaid primary categories that indicate a transfer (not real income/expense)
+const TRANSFER_PLAID_CATEGORIES = new Set([
+  "TRANSFER_IN",
+  "TRANSFER_OUT",
+  "LOAN_PAYMENTS",
+]);
+
+// Plaid detailed categories that indicate a transfer
+const TRANSFER_DETAILED_KEYWORDS = [
+  "transfer",
+  "payment",
+  "credit_card_payment",
+  "account_transfer",
+  "loan_payment",
+];
+
+// Description substrings (uppercased) that indicate a transfer
+const TRANSFER_DESC_KEYWORDS = [
+  "TRANSFER",
+  "XFER",
+  "PAYMENT TO",
+  "CC PAYMENT",
+  "ACH PMT",
+];
+
+function isTransfer(t: Transaction): boolean {
+  const primary  = t.personal_finance_category?.primary  ?? "";
+  const detailed = (t.personal_finance_category?.detailed ?? "").toLowerCase();
+  const desc     = t.name.toUpperCase();
+
+  if (TRANSFER_PLAID_CATEGORIES.has(primary)) return true;
+  if (TRANSFER_DETAILED_KEYWORDS.some((kw) => detailed.includes(kw))) return true;
+  if (TRANSFER_DESC_KEYWORDS.some((kw) => desc.includes(kw))) return true;
+  return false;
+}
+
 function mapAccountType(
   type: AccountType,
   subtype: AccountSubtype | null
@@ -50,8 +86,14 @@ function mapTransaction(t: Transaction) {
   const category    = CATEGORY_MAP[primary] ?? "discretionary";
   const subcategory = detailed ? toTitleCase(detailed) : t.name.slice(0, 60);
 
-  // Plaid convention: positive amount = money leaving account (expense).
-  const type   = t.amount > 0 ? ("expense" as const) : ("income" as const);
+  // Detect transfers first; otherwise use Plaid sign convention:
+  // positive amount = money leaving account (expense), negative = income.
+  let type: "income" | "expense" | "transfer";
+  if (isTransfer(t)) {
+    type = "transfer";
+  } else {
+    type = t.amount > 0 ? "expense" : "income";
+  }
   const amount = Math.abs(t.amount);
 
   return {

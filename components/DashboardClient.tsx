@@ -408,7 +408,12 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
                           </td>
                           <td className="px-5 py-3 text-gray-700">{t.description}</td>
                           <td className="px-5 py-3">
-                            {meta ? (
+                            {t.type === "transfer" ? (
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-500">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                                Transfer
+                              </span>
+                            ) : meta ? (
                               <span
                                 className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium"
                                 style={{ backgroundColor: meta.color + "20", color: meta.color }}
@@ -420,8 +425,8 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
                               <span className="text-xs text-gray-400">{t.subcategory}</span>
                             )}
                           </td>
-                          <td className={`px-5 py-3 text-right font-semibold tabular-nums ${t.type === "expense" ? "text-red-500" : "text-emerald-600"}`}>
-                            {t.type === "expense" ? "−" : "+"}{formatCurrency(t.amount)}
+                          <td className={`px-5 py-3 text-right font-semibold tabular-nums ${t.type === "expense" ? "text-red-500" : t.type === "income" ? "text-emerald-600" : "text-blue-500"}`}>
+                            {t.type === "expense" ? "−" : t.type === "income" ? "+" : "⇄"}{formatCurrency(t.amount)}
                           </td>
                         </tr>
                       );
