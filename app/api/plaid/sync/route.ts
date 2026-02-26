@@ -187,14 +187,16 @@ export async function POST() {
             console.error(`[plaid] upsert accounts for ${item.item_id}: ${acctErr.message}`);
           } else {
             // Remove stale accounts for this institution that Plaid no longer returns.
-            // This handles reconnects where Plaid issues new account_ids for existing accounts.
-            const newPlaidIds = accountRows.map((r) => r.plaid_account_id);
+            // Fetch all DB accounts for this bank first, then filter in JS — this
+            // avoids a PostgREST NOT-IN format pitfall where quoted values never match.
+            const newPlaidIds = new Set(accountRows.map((r) => r.plaid_account_id));
             const { data: existing } = await db
               .from("accounts")
-              .select("id")
-              .eq("bank_name", item.institution_name ?? "")
-              .not("plaid_account_id", "in", `(${newPlaidIds.map((id) => `"${id}"`).join(",")})`);
-            const staleIds = (existing ?? []).map((a) => a.id);
+              .select("id, plaid_account_id")
+              .eq("bank_name", item.institution_name ?? "");
+            const staleIds = (existing ?? [])
+              .filter((a) => !newPlaidIds.has(a.plaid_account_id))
+              .map((a) => a.id);
             if (staleIds.length > 0) {
               const { error: staleErr } = await db
                 .from("accounts")
