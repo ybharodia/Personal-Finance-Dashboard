@@ -546,6 +546,7 @@ function PlusIcon() {
 function CategoryRow({
   cat,
   accounts,
+  isIncome,
   onEditSubcategory,
   onDelete,
   onDeleteSubcategory,
@@ -553,6 +554,7 @@ function CategoryRow({
 }: {
   cat: CatView;
   accounts: DbAccount[];
+  isIncome?: boolean;
   onEditSubcategory: (
     catId: string,
     catName: string,
@@ -598,20 +600,29 @@ function CategoryRow({
             <span className="text-xs text-gray-400">{cat.subcategories.length} categories</span>
           </div>
           <div className="flex items-center gap-6 shrink-0 ml-4">
-            <div className="text-right hidden sm:block">
-              <p className="text-xs text-gray-400">Budgeted</p>
-              <p className="text-sm font-medium text-gray-700 tabular-nums">{formatCurrency(cat.budgeted)}</p>
-            </div>
-            <div className="text-right hidden sm:block">
-              <p className="text-xs text-gray-400">Spent</p>
-              <p className={`text-sm font-medium tabular-nums ${over ? "text-red-500" : "text-gray-700"}`}>{formatCurrency(cat.spent)}</p>
-            </div>
-            <div className="text-right">
-              <p className="text-xs text-gray-400">Remaining</p>
-              <p className={`text-sm font-semibold tabular-nums ${remaining < 0 ? "text-red-500" : "text-emerald-600"}`}>
-                {formatCurrency(remaining)}
-              </p>
-            </div>
+            {isIncome ? (
+              <div className="text-right">
+                <p className="text-xs text-gray-400">Received</p>
+                <p className="text-sm font-semibold tabular-nums text-emerald-600">{formatCurrency(cat.spent)}</p>
+              </div>
+            ) : (
+              <>
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-gray-400">Budgeted</p>
+                  <p className="text-sm font-medium text-gray-700 tabular-nums">{formatCurrency(cat.budgeted)}</p>
+                </div>
+                <div className="text-right hidden sm:block">
+                  <p className="text-xs text-gray-400">Spent</p>
+                  <p className={`text-sm font-medium tabular-nums ${over ? "text-red-500" : "text-gray-700"}`}>{formatCurrency(cat.spent)}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-gray-400">Remaining</p>
+                  <p className={`text-sm font-semibold tabular-nums ${remaining < 0 ? "text-red-500" : "text-emerald-600"}`}>
+                    {formatCurrency(remaining)}
+                  </p>
+                </div>
+              </>
+            )}
             <svg
               className={`w-4 h-4 text-gray-400 transition-transform ${expanded ? "rotate-180" : ""}`}
               fill="none"
@@ -668,15 +679,17 @@ function CategoryRow({
       </div>
 
       {/* Category progress bar */}
-      <div className="px-5 pb-3">
-        <div className="w-full bg-gray-100 rounded-full h-1.5">
-          <div
-            className="h-1.5 rounded-full transition-all"
-            style={{ width: `${pct}%`, backgroundColor: over ? "#ef4444" : cat.color }}
-          />
+      {!isIncome && (
+        <div className="px-5 pb-3">
+          <div className="w-full bg-gray-100 rounded-full h-1.5">
+            <div
+              className="h-1.5 rounded-full transition-all"
+              style={{ width: `${pct}%`, backgroundColor: over ? "#ef4444" : cat.color }}
+            />
+          </div>
+          <p className="text-xs text-gray-400 mt-1">{pct.toFixed(0)}% used</p>
         </div>
-        <p className="text-xs text-gray-400 mt-1">{pct.toFixed(0)}% used</p>
-      </div>
+      )}
 
       {/* Subcategories */}
       {expanded && (
@@ -702,22 +715,30 @@ function CategoryRow({
                         {sc.name}
                       </span>
                       <div className="flex items-center gap-3 shrink-0 ml-4">
-                        <span className="text-xs text-gray-400 hidden sm:inline">
-                          {formatCurrency(sc.spent)}{" "}
-                          <span className="text-gray-300">/</span>{" "}
-                          {sc.budgeted > 0 ? formatCurrency(sc.budgeted) : "no budget"}
-                        </span>
-                        <span
-                          className={`text-sm font-semibold tabular-nums ${
-                            subOver
-                              ? "text-red-500"
-                              : sc.budgeted === 0
-                              ? "text-gray-400"
-                              : "text-emerald-600"
-                          }`}
-                        >
-                          {sc.budgeted > 0 ? formatCurrency(sc.budgeted - sc.spent) : "—"}
-                        </span>
+                        {isIncome ? (
+                          <span className="text-sm font-semibold tabular-nums text-emerald-600">
+                            {formatCurrency(sc.spent)}
+                          </span>
+                        ) : (
+                          <>
+                            <span className="text-xs text-gray-400 hidden sm:inline">
+                              {formatCurrency(sc.spent)}{" "}
+                              <span className="text-gray-300">/</span>{" "}
+                              {sc.budgeted > 0 ? formatCurrency(sc.budgeted) : "no budget"}
+                            </span>
+                            <span
+                              className={`text-sm font-semibold tabular-nums ${
+                                subOver
+                                  ? "text-red-500"
+                                  : sc.budgeted === 0
+                                  ? "text-gray-400"
+                                  : "text-emerald-600"
+                              }`}
+                            >
+                              {sc.budgeted > 0 ? formatCurrency(sc.budgeted - sc.spent) : "—"}
+                            </span>
+                          </>
+                        )}
                         {sc.transactions.length > 0 && (
                           <svg
                             className={`w-3.5 h-3.5 text-gray-400 transition-transform ${isOpen ? "rotate-180" : ""}`}
@@ -731,15 +752,17 @@ function CategoryRow({
                         )}
                       </div>
                     </div>
-                    <div className="w-full bg-gray-100 rounded-full h-1">
-                      <div
-                        className="h-1 rounded-full"
-                        style={{
-                          width: `${subPct}%`,
-                          backgroundColor: subOver ? "#ef4444" : cat.color,
-                        }}
-                      />
-                    </div>
+                    {!isIncome && (
+                      <div className="w-full bg-gray-100 rounded-full h-1">
+                        <div
+                          className="h-1 rounded-full"
+                          style={{
+                            width: `${subPct}%`,
+                            backgroundColor: subOver ? "#ef4444" : cat.color,
+                          }}
+                        />
+                      </div>
+                    )}
                   </button>
 
                   {/* Subcategory action buttons */}
@@ -811,8 +834,8 @@ function CategoryRow({
                               </p>
                             </div>
                           </div>
-                          <span className="text-xs font-semibold text-red-500 tabular-nums">
-                            −{formatCurrency(t.amount)}
+                          <span className={`text-xs font-semibold tabular-nums ${isIncome ? "text-emerald-600" : "text-red-500"}`}>
+                            {isIncome ? "+" : "−"}{formatCurrency(t.amount)}
                           </span>
                         </div>
                       );
@@ -1109,7 +1132,7 @@ export default function BudgetsClient({
             <h2 className="text-sm font-semibold text-gray-700">Budgeted vs Spent by Category</h2>
           </div>
           <div style={{ overflowX: "auto" }}>
-            <div style={{ minWidth: Math.max(720, categoryViews.length * 110) }}>
+            <div style={{ minWidth: Math.max(720, spendingCategories.length * 110) }}>
               <ResponsiveContainer width="100%" height={280}>
                 <BarChart
                   data={chartData}
@@ -1164,6 +1187,7 @@ export default function BudgetsClient({
                 key={cat.id}
                 cat={cat}
                 accounts={accounts}
+                isIncome={cat.name === "Income"}
                 onEditSubcategory={openEdit}
                 onDelete={handleDeleteCategory}
                 onDeleteSubcategory={handleDeleteSubcategory}
