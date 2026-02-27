@@ -97,18 +97,21 @@ export type Database = {
           name: string;
           color: string;
           sort_order: number;
+          type: string;
         };
         Insert: {
           id: string;
           name: string;
           color: string;
           sort_order?: number;
+          type?: string;
         };
         Update: {
           id?: string;
           name?: string;
           color?: string;
           sort_order?: number;
+          type?: string;
         };
         Relationships: [];
       };

@@ -56,7 +56,7 @@ export async function getCategories(): Promise<CategoryMeta[]> {
   console.log(TAG, "getCategories");
   const { data, error } = await supabase
     .from("budget_categories")
-    .select("id, name, color")
+    .select("id, name, color, type")
     .order("sort_order");
   console.log(TAG, "getCategories — error:", error, "| count:", data?.length ?? 0);
   if (error) throw new Error(`getCategories: ${error.message}`);
