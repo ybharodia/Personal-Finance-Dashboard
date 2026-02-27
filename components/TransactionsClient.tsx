@@ -6,19 +6,21 @@ import DateRangeFilter, { type DateRange, getPresetRange } from "@/components/Da
 import TransactionModal from "@/components/TransactionModal";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import { getCategoryMeta, formatCurrency } from "@/lib/data";
+import type { CategoryMeta } from "@/lib/data";
 import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
 
 type Props = {
   accounts: DbAccount[];
   transactions: DbTransaction[];
   budgets: DbBudget[];
+  categories: CategoryMeta[];
 };
 
 function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function TransactionsClient({ accounts, transactions, budgets }: Props) {
+export default function TransactionsClient({ accounts, transactions, budgets, categories }: Props) {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
@@ -218,6 +220,7 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
         <TransactionModal
           tx={editingTx}
           budgets={budgets}
+          categories={categories}
           allTransactions={localTxns}
           onClose={() => setEditingTx(null)}
           onSave={handleSaveEdit}

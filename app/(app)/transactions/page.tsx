@@ -1,4 +1,4 @@
-import { getAccounts, getTransactionsByDateRange, getBudgets } from "@/lib/db";
+import { getAccounts, getTransactionsByDateRange, getBudgets, getCategories } from "@/lib/db";
 import TransactionsClient from "@/components/TransactionsClient";
 
 export const dynamic = "force-dynamic";
@@ -15,10 +15,11 @@ export default async function TransactionsPage() {
   const currentMonth = today.getMonth() + 1;
   const currentYear = today.getFullYear();
 
-  const [accounts, transactions, budgets] = await Promise.all([
+  const [accounts, transactions, budgets, categories] = await Promise.all([
     getAccounts(),
     getTransactionsByDateRange(fromStr, toStr),
     getBudgets(currentMonth, currentYear),
+    getCategories(),
   ]);
 
   return (
@@ -26,6 +27,7 @@ export default async function TransactionsPage() {
       accounts={accounts}
       transactions={transactions}
       budgets={budgets}
+      categories={categories}
     />
   );
 }

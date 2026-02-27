@@ -2,12 +2,14 @@
 
 import { useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { BUDGET_CATEGORIES, formatCurrency } from "@/lib/data";
+import { formatCurrency } from "@/lib/data";
+import type { CategoryMeta } from "@/lib/data";
 import type { DbTransaction, DbBudget } from "@/lib/database.types";
 
 type Props = {
   tx: DbTransaction;
   budgets: DbBudget[];
+  categories: CategoryMeta[];
   onClose: () => void;
   onSave: (updatedTxns: DbTransaction[]) => void;
   allTransactions: DbTransaction[];
@@ -16,6 +18,7 @@ type Props = {
 export default function TransactionModal({
   tx,
   budgets,
+  categories,
   onClose,
   onSave,
   allTransactions,
@@ -45,6 +48,28 @@ export default function TransactionModal({
   const categoryChanged =
     type !== "transfer" &&
     (category !== tx.category || subcategory !== tx.subcategory);
+
+  // Filter categories based on transaction type:
+  // income → only the "Income" category; expense → everything else
+  const categoryOptions = useMemo(() => {
+    if (type === "income") return categories.filter((c) => c.name === "Income");
+    return categories.filter((c) => c.name !== "Income");
+  }, [categories, type]);
+
+  // When type changes, reset category/subcategory if the current category
+  // doesn't belong to the new type's category set
+  function handleTypeChange(newType: "income" | "expense" | "transfer") {
+    setType(newType);
+    if (newType === "transfer") return;
+    const newCats =
+      newType === "income"
+        ? categories.filter((c) => c.name === "Income")
+        : categories.filter((c) => c.name !== "Income");
+    if (newCats.length > 0 && !newCats.find((c) => c.id === category)) {
+      setCategory(newCats[0].id);
+      setSubcategory("");
+    }
+  }
 
   const subcategoryOptions = useMemo(() => {
     const seen = new Set<string>();
@@ -183,7 +208,7 @@ export default function TransactionModal({
               {(["expense", "income", "transfer"] as const).map((t) => (
                 <button
                   key={t}
-                  onClick={() => setType(t)}
+                  onClick={() => handleTypeChange(t)}
                   className={`flex-1 py-2 text-xs font-semibold transition-colors ${
                     type === t
                       ? t === "expense"
@@ -213,12 +238,12 @@ export default function TransactionModal({
                   }}
                   className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 bg-white"
                 >
-                  {BUDGET_CATEGORIES.map((c) => (
+                  {categoryOptions.map((c) => (
                     <option key={c.id} value={c.id}>{c.name}</option>
                   ))}
-                  {/* If current category isn't in BUDGET_CATEGORIES */}
-                  {!BUDGET_CATEGORIES.find((c) => c.id === tx.category) && (
-                    <option value={tx.category}>{tx.category}</option>
+                  {/* Fallback if current category isn't in the filtered list */}
+                  {!categoryOptions.find((c) => c.id === category) && (
+                    <option value={category}>{category}</option>
                   )}
                 </select>
               </div>
