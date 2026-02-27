@@ -47,6 +47,11 @@ type EditingState = {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const MONTH_NAMES = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
 function slugify(str: string): string {
   return str
     .toLowerCase()
@@ -881,6 +886,49 @@ export default function BudgetsClient({
   // State for AddSubcategoryModal
   const [addingSubFor, setAddingSubFor] = useState<{ catId: string; catName: string; catColor: string } | null>(null);
 
+  // Month navigation state
+  const [selectedMonth, setSelectedMonth] = useState(month);
+  const [selectedYear, setSelectedYear] = useState(year);
+  const [selectedTransactions, setSelectedTransactions] = useState<DbTransaction[]>(transactions);
+  const [loadingMonth, setLoadingMonth] = useState(false);
+
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  const isCurrentMonth = selectedMonth === currentMonth && selectedYear === currentYear;
+
+  async function navigateMonth(delta: number) {
+    let newMonth = selectedMonth + delta;
+    let newYear = selectedYear;
+    if (newMonth < 1) { newMonth = 12; newYear -= 1; }
+    if (newMonth > 12) { newMonth = 1; newYear += 1; }
+    if (newYear > currentYear || (newYear === currentYear && newMonth > currentMonth)) return;
+
+    setLoadingMonth(true);
+    try {
+      const pad = (n: number) => String(n).padStart(2, "0");
+      const start = `${newYear}-${pad(newMonth)}-01`;
+      const nm = newMonth === 12 ? 1 : newMonth + 1;
+      const ny = newMonth === 12 ? newYear + 1 : newYear;
+      const end = `${ny}-${pad(nm)}-01`;
+
+      const { data, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .gte("date", start)
+        .lt("date", end)
+        .order("date", { ascending: false });
+
+      if (!error && data) {
+        setSelectedTransactions(data);
+        setSelectedMonth(newMonth);
+        setSelectedYear(newYear);
+      }
+    } finally {
+      setLoadingMonth(false);
+    }
+  }
+
   function handleBudgetSaved(saved: DbBudget) {
     const nameChanged = editing && saved.subcategory !== editing.subcategory;
     setLocalBudgets((prev) => {
@@ -967,7 +1015,7 @@ export default function BudgetsClient({
     return localCategories.map((meta) => {
       const catBudgets = localBudgets.filter((b) => b.category === meta.id);
       // Include both expenses and income (exclude only transfers)
-      const catTxns = transactions.filter((t) => t.type !== "transfer" && t.category === meta.id);
+      const catTxns = selectedTransactions.filter((t) => t.type !== "transfer" && t.category === meta.id);
 
       const subcatMap = new Map<string, SubView>();
       for (const b of catBudgets) {
@@ -1008,7 +1056,7 @@ export default function BudgetsClient({
         subcategories,
       };
     });
-  }, [localBudgets, localCategories, transactions, deletedSubKeys]);
+  }, [localBudgets, localCategories, selectedTransactions, deletedSubKeys]);
 
   const spendingCategories = categoryViews.filter((c) => c.name !== "Income");
 
@@ -1083,7 +1131,28 @@ export default function BudgetsClient({
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">Budgets</h1>
-            <p className="text-sm text-gray-400 mt-0.5">February 2026</p>
+            <div className="flex items-center gap-1 mt-0.5">
+              <button
+                onClick={() => navigateMonth(-1)}
+                disabled={loadingMonth}
+                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors rounded"
+                aria-label="Previous month"
+              >
+                ←
+              </button>
+              <p className="text-sm text-gray-400 w-32 text-center tabular-nums">
+                {loadingMonth ? "Loading…" : `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`}
+              </p>
+              <button
+                onClick={() => navigateMonth(1)}
+                disabled={loadingMonth || isCurrentMonth}
+                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors rounded"
+                aria-label="Next month"
+                style={{ visibility: isCurrentMonth ? "hidden" : "visible" }}
+              >
+                →
+              </button>
+            </div>
           </div>
           <button
             onClick={() => setShowAddCategory(true)}
@@ -1215,8 +1284,8 @@ export default function BudgetsClient({
           catId={addingSubFor.catId}
           catName={addingSubFor.catName}
           catColor={addingSubFor.catColor}
-          month={month}
-          year={year}
+          month={selectedMonth}
+          year={selectedYear}
           existingSubNames={existingSubNamesForCat}
           onSave={handleSubcategoryAdded}
           onClose={() => setAddingSubFor(null)}
@@ -1226,8 +1295,8 @@ export default function BudgetsClient({
       {editing && (
         <BudgetEditModal
           editing={editing}
-          month={month}
-          year={year}
+          month={selectedMonth}
+          year={selectedYear}
           onSave={handleBudgetSaved}
           onClose={() => setEditing(null)}
         />
