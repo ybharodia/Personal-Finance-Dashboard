@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import type { RecurringTransaction, RecurringFrequency } from "@/lib/recurring";
 import { buildManualRecurring, toMerchantKey } from "@/lib/recurring";
 import { formatCurrency, getCategoryMeta } from "@/lib/data";
@@ -47,6 +48,7 @@ function formatDateRelative(dateStr: string): { label: string; urgent: boolean }
 type FilterType = "all" | RecurringFrequency;
 
 export default function RecurringClient({ recurring, allTransactions }: Props) {
+  const router = useRouter();
   const [list, setList] = useState<RecurringTransaction[]>(recurring);
   const [filter, setFilter] = useState<FilterType>("all");
   const [showAddModal, setShowAddModal] = useState(false);
@@ -112,7 +114,7 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
   // ── Actions ──────────────────────────────────────────────────────────────────
 
   async function handleRemove(merchantKey: string) {
-    // Optimistic remove
+    const snapshot = list; // capture current state for accurate rollback
     setList((prev) => prev.filter((r) => r.merchantKey !== merchantKey));
     setPendingKey(merchantKey);
     try {
@@ -122,9 +124,9 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
         body: JSON.stringify({ merchant_key: merchantKey, is_recurring: false }),
       });
       if (!res.ok) throw new Error("Request failed");
+      router.refresh(); // invalidate Next.js router cache so navigating back reflects the change
     } catch {
-      // Restore on failure
-      setList(recurring);
+      setList(snapshot); // restore only this operation's state, not all previous removals
     } finally {
       setPendingKey(null);
     }
@@ -152,6 +154,7 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
       );
       setShowAddModal(false);
       setAddSearch("");
+      router.refresh(); // invalidate Next.js router cache so navigating back reflects the addition
     } catch {
       // noop — data wasn't saved
     } finally {
