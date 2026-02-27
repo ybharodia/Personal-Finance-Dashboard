@@ -987,12 +987,14 @@ export default function BudgetsClient({
     });
   }, [localBudgets, localCategories, transactions, deletedSubKeys]);
 
-  const totalBudgeted = categoryViews.reduce((s, c) => s + c.budgeted, 0);
-  const totalSpent = categoryViews.reduce((s, c) => s + c.spent, 0);
+  const spendingCategories = categoryViews.filter((c) => c.name !== "Income");
+
+  const totalBudgeted = spendingCategories.reduce((s, c) => s + c.budgeted, 0);
+  const totalSpent = spendingCategories.reduce((s, c) => s + c.spent, 0);
   const totalRemaining = totalBudgeted - totalSpent;
   const overallPct = totalBudgeted > 0 ? Math.min((totalSpent / totalBudgeted) * 100, 100) : 0;
 
-  const chartData = categoryViews.map((c) => ({
+  const chartData = spendingCategories.map((c) => ({
     name: c.name,
     Budgeted: parseFloat(c.budgeted.toFixed(2)),
     Spent: parseFloat(c.spent.toFixed(2)),
