@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, startTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   BarChart,
@@ -348,6 +348,7 @@ function BudgetEditModal({
   onSave: (saved: DbBudget) => void;
   onClose: () => void;
 }) {
+  const [subcategoryName, setSubcategoryName] = useState(editing.subcategory);
   const [amount, setAmount] = useState(
     editing.currentAmount > 0 ? editing.currentAmount.toFixed(2) : ""
   );
@@ -355,31 +356,48 @@ function BudgetEditModal({
   const [error, setError] = useState<string | null>(null);
 
   async function handleSave() {
+    const trimmedName = subcategoryName.trim();
+    if (!trimmedName) { setError("Subcategory name is required."); return; }
     const num = parseFloat(amount);
     if (isNaN(num) || num < 0) {
       setError("Please enter a valid amount (e.g. 500 or 1200.00)");
       return;
     }
+    const nameChanged = trimmedName !== editing.subcategory;
     setSaving(true);
     setError(null);
     try {
       if (editing.existingId) {
         const { data, error: dbErr } = await supabase
           .from("budgets")
-          .update({ budgeted_amount: num })
+          .update({ budgeted_amount: num, subcategory: trimmedName })
           .eq("id", editing.existingId)
           .select()
           .single();
         if (dbErr) throw dbErr;
+        if (nameChanged) {
+          await supabase
+            .from("transactions")
+            .update({ subcategory: trimmedName })
+            .eq("category", editing.catId)
+            .eq("subcategory", editing.subcategory);
+        }
         onSave(data as DbBudget);
       } else {
+        if (nameChanged) {
+          await supabase
+            .from("transactions")
+            .update({ subcategory: trimmedName })
+            .eq("category", editing.catId)
+            .eq("subcategory", editing.subcategory);
+        }
         const newId = crypto.randomUUID();
         const { data, error: dbErr } = await supabase
           .from("budgets")
           .insert({
             id: newId,
             category: editing.catId,
-            subcategory: editing.subcategory,
+            subcategory: trimmedName,
             budgeted_amount: num,
             month,
             year,
@@ -412,9 +430,21 @@ function BudgetEditModal({
         </h2>
         <p className="text-sm text-gray-500 mb-5">
           {editing.catName}
-          <span className="mx-1.5 text-gray-300">›</span>
-          {editing.subcategory}
         </p>
+
+        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
+          Name
+        </label>
+        <input
+          type="text"
+          value={subcategoryName}
+          onChange={(e) => setSubcategoryName(e.target.value)}
+          className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
+          placeholder="Subcategory name"
+          // eslint-disable-next-line jsx-a11y/no-autofocus
+          autoFocus
+          onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+        />
 
         <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
           Monthly Budget Amount
@@ -431,8 +461,6 @@ function BudgetEditModal({
             onChange={(e) => setAmount(e.target.value)}
             className="w-full pl-8 pr-4 py-3 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
             placeholder="0.00"
-            // eslint-disable-next-line jsx-a11y/no-autofocus
-            autoFocus
             onKeyDown={(e) => {
               if (e.key === "Enter") handleSave();
               if (e.key === "Escape") onClose();
@@ -561,7 +589,7 @@ function CategoryRow({
       {/* Header row — split into expand area + action buttons */}
       <div className="flex items-center hover:bg-gray-50 transition-colors group">
         <button
-          onClick={() => setExpanded(!expanded)}
+          onClick={() => startTransition(() => setExpanded(!expanded))}
           className="flex-1 flex items-center justify-between px-5 py-4 min-w-0"
         >
           <div className="flex items-center gap-3 min-w-0">
@@ -665,7 +693,7 @@ function CategoryRow({
               <div key={sc.name} className="border-b border-gray-50 last:border-0">
                 <div className="flex items-center px-5 py-3 hover:bg-gray-50 transition-colors group/sub">
                   <button
-                    onClick={() => setExpandedSub(isOpen ? null : subKey)}
+                    onClick={() => startTransition(() => setExpandedSub(isOpen ? null : subKey))}
                     className="flex-1 min-w-0 text-left"
                     disabled={isDeleting}
                   >
@@ -831,11 +859,17 @@ export default function BudgetsClient({
   const [addingSubFor, setAddingSubFor] = useState<{ catId: string; catName: string; catColor: string } | null>(null);
 
   function handleBudgetSaved(saved: DbBudget) {
+    const nameChanged = editing && saved.subcategory !== editing.subcategory;
     setLocalBudgets((prev) => {
       const exists = prev.find((b) => b.id === saved.id);
       if (exists) return prev.map((b) => (b.id === saved.id ? saved : b));
       return [...prev, saved];
     });
+    if (nameChanged && editing) {
+      // Hide the old txn-derived row immediately; router.refresh() will sync transactions
+      setDeletedSubKeys((prev) => new Set([...prev, `${editing.catId}|||${editing.subcategory}`]));
+      router.refresh();
+    }
     setEditing(null);
   }
 
@@ -846,7 +880,9 @@ export default function BudgetsClient({
     currentAmount: number,
     existingId: string | null
   ) {
-    setEditing({ catId, catName, subcategory, currentAmount, existingId });
+    startTransition(() => {
+      setEditing({ catId, catName, subcategory, currentAmount, existingId });
+    });
   }
 
   function handleCategoryAdded(cat: CategoryMeta) {
