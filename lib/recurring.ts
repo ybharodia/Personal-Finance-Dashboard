@@ -4,6 +4,8 @@ export type RecurringFrequency = "weekly" | "biweekly" | "monthly";
 
 export type RecurringTransaction = {
   merchant: string;
+  /** Normalized, stable identifier used to match/store override rules. */
+  merchantKey: string;
   averageAmount: number;
   frequency: RecurringFrequency;
   intervalDays: number;
@@ -30,6 +32,14 @@ function normalizeMerchant(description: string): string {
     .replace(/[^a-z0-9\s]/g, " ")  // remove remaining special chars
     .replace(/\s+/g, " ")          // collapse whitespace
     .trim();
+}
+
+/**
+ * Stable merchant identifier for override storage and matching.
+ * Use this everywhere a merchant_key is needed (DB, UI, comparisons).
+ */
+export function toMerchantKey(description: string): string {
+  return normalizeMerchant(description);
 }
 
 // Fuzzy prefix key: first 8 chars of normalized name.
@@ -95,6 +105,46 @@ function distinctMonths(txns: DbTransaction[]): number {
   return new Set(txns.map((t) => t.date.slice(0, 7))).size;
 }
 
+/**
+ * Build a RecurringTransaction from a manually force-included set of transactions.
+ * Used both server-side (page.tsx) and client-side (RecurringClient optimistic add).
+ */
+export function buildManualRecurring(
+  txns: DbTransaction[],
+  merchantKey: string
+): RecurringTransaction {
+  const expenses = txns.filter((t) => t.type !== "income");
+  const sorted = [...expenses].sort((a, b) => a.date.localeCompare(b.date));
+
+  const amounts = sorted.map((t) => Math.abs(t.amount));
+  const meanAmount =
+    amounts.length > 0 ? amounts.reduce((a, b) => a + b, 0) / amounts.length : 0;
+
+  const today = new Date().toISOString().split("T")[0];
+  const lastDate = sorted.length > 0 ? sorted[sorted.length - 1].date : today;
+  const nextPredictedDate = addDays(lastDate, 30);
+
+  const category = mostCommon(sorted.map((t) => t.category).filter(Boolean) as string[]);
+  const subcategory = mostCommon(
+    sorted.map((t) => t.subcategory).filter(Boolean) as string[]
+  );
+  const merchant = sorted.length > 0 ? sorted[sorted.length - 1].description : merchantKey;
+
+  return {
+    merchant,
+    merchantKey,
+    averageAmount: meanAmount,
+    frequency: "monthly",
+    intervalDays: 30,
+    lastDate,
+    nextPredictedDate,
+    monthlyAmount: meanAmount,
+    occurrences: sorted.length,
+    category: category ?? null,
+    subcategory: subcategory ?? null,
+  };
+}
+
 export function detectRecurringTransactions(
   transactions: DbTransaction[]
 ): RecurringTransaction[] {
@@ -155,6 +205,7 @@ export function detectRecurringTransactions(
 
     results.push({
       merchant,
+      merchantKey: toMerchantKey(merchant),
       averageAmount: meanAmount,
       frequency,
       intervalDays,
@@ -215,6 +266,7 @@ export function detectRecurringTransactions(
 
     results.push({
       merchant,
+      merchantKey: toMerchantKey(merchant),
       averageAmount: meanAmount,
       frequency: "monthly",
       intervalDays: 30,
