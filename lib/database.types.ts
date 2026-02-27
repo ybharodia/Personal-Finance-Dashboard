@@ -91,6 +91,27 @@ export type Database = {
         };
         Relationships: [];
       };
+      budget_categories: {
+        Row: {
+          id: string;
+          name: string;
+          color: string;
+          sort_order: number;
+        };
+        Insert: {
+          id: string;
+          name: string;
+          color: string;
+          sort_order?: number;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          color?: string;
+          sort_order?: number;
+        };
+        Relationships: [];
+      };
       plaid_items: {
         Row: {
           id: string;
@@ -125,7 +146,8 @@ export type Database = {
 };
 
 // Convenience row types
-export type DbAccount    = Database["public"]["Tables"]["accounts"]["Row"];
-export type DbTransaction = Database["public"]["Tables"]["transactions"]["Row"];
-export type DbBudget     = Database["public"]["Tables"]["budgets"]["Row"];
-export type DbPlaidItem  = Database["public"]["Tables"]["plaid_items"]["Row"];
+export type DbAccount         = Database["public"]["Tables"]["accounts"]["Row"];
+export type DbTransaction     = Database["public"]["Tables"]["transactions"]["Row"];
+export type DbBudget          = Database["public"]["Tables"]["budgets"]["Row"];
+export type DbPlaidItem       = Database["public"]["Tables"]["plaid_items"]["Row"];
+export type DbBudgetCategory  = Database["public"]["Tables"]["budget_categories"]["Row"];

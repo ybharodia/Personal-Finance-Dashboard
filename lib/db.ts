@@ -1,5 +1,6 @@
 import { supabase } from "./supabase";
 import type { DbAccount, DbTransaction, DbBudget } from "./database.types";
+import type { CategoryMeta } from "./data";
 
 const TAG = "[db]";
 
@@ -49,6 +50,17 @@ export async function getTransactionsByDateRange(from: string, to: string): Prom
   console.log(TAG, "getTransactionsByDateRange — error:", error, "| count:", data?.length ?? 0);
   if (error) throw new Error(`getTransactionsByDateRange: ${error.message}`);
   return data ?? [];
+}
+
+export async function getCategories(): Promise<CategoryMeta[]> {
+  console.log(TAG, "getCategories");
+  const { data, error } = await supabase
+    .from("budget_categories")
+    .select("id, name, color")
+    .order("sort_order");
+  console.log(TAG, "getCategories — error:", error, "| count:", data?.length ?? 0);
+  if (error) throw new Error(`getCategories: ${error.message}`);
+  return (data ?? []) as CategoryMeta[];
 }
 
 export async function getBudgets(

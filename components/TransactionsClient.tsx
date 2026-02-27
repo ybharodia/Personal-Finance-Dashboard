@@ -25,6 +25,7 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
   const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
   const [editingTx, setEditingTx] = useState<DbTransaction | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [typeFilter, setTypeFilter] = useState<"income" | "expense" | "transfer" | null>(null);
 
   const filtered = useMemo(() => {
     const fromStr = toIsoDate(dateRange.from);
@@ -50,8 +51,13 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
     return list;
   }, [selectedAccount, search, dateRange, localTxns, accounts]);
 
-  const totalIncome = filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
-  const totalExpenses = filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  // Totals always reflect the full date/account/search-filtered set, regardless of type filter
+  const totalIncome    = filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
+  const totalExpenses  = filtered.filter((t) => t.type === "expense").reduce((s, t) => s + t.amount, 0);
+  const totalTransfers = filtered.filter((t) => t.type === "transfer").reduce((s, t) => s + t.amount, 0);
+
+  // Apply type filter only to the table
+  const displayedTxns = typeFilter ? filtered.filter((t) => t.type === typeFilter) : filtered;
 
   function handleSaveEdit(updated: DbTransaction[]) {
     setLocalTxns(updated);
@@ -75,18 +81,28 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-              <p className="text-sm text-gray-400 mt-0.5">{filtered.length} transactions</p>
+              <p className="text-sm text-gray-400 mt-0.5">
+                {displayedTxns.length} transaction{displayedTxns.length !== 1 ? "s" : ""}
+                {typeFilter && <span className="ml-1">· {typeFilter} only</span>}
+              </p>
             </div>
             <div className="flex items-center gap-3">
-              <div className="flex gap-3 text-sm">
-                <div className="bg-emerald-50 border border-emerald-100 rounded-lg px-4 py-2 text-center">
-                  <p className="text-xs text-gray-400 font-medium">Income</p>
-                  <p className="font-bold text-emerald-600 tabular-nums">{formatCurrency(totalIncome)}</p>
-                </div>
-                <div className="bg-red-50 border border-red-100 rounded-lg px-4 py-2 text-center">
-                  <p className="text-xs text-gray-400 font-medium">Expenses</p>
-                  <p className="font-bold text-red-500 tabular-nums">{formatCurrency(totalExpenses)}</p>
-                </div>
+              {/* Type filter cards — click to filter, click again to clear */}
+              <div className="flex gap-2 text-sm">
+                {([
+                  { key: "income",   label: "Income",    amount: totalIncome,    active: "bg-emerald-500 border-emerald-500 text-white", inactive: "bg-emerald-50 border-emerald-100 text-emerald-600" },
+                  { key: "expense",  label: "Expenses",  amount: totalExpenses,  active: "bg-red-500 border-red-500 text-white",           inactive: "bg-red-50 border-red-100 text-red-500" },
+                  { key: "transfer", label: "Transfers", amount: totalTransfers, active: "bg-blue-500 border-blue-500 text-white",          inactive: "bg-blue-50 border-blue-100 text-blue-500" },
+                ] as const).map(({ key, label, amount, active, inactive }) => (
+                  <button
+                    key={key}
+                    onClick={() => setTypeFilter(typeFilter === key ? null : key)}
+                    className={`border rounded-lg px-3 py-2 text-center transition-all ${typeFilter === key ? active : inactive} hover:opacity-80`}
+                  >
+                    <p className={`text-xs font-medium ${typeFilter === key ? "text-white/80" : "text-gray-400"}`}>{label}</p>
+                    <p className="font-bold tabular-nums">{formatCurrency(amount)}</p>
+                  </button>
+                ))}
               </div>
               <button
                 onClick={() => setShowAddModal(true)}
@@ -136,14 +152,14 @@ export default function TransactionsClient({ accounts, transactions, budgets }: 
                   </tr>
                 </thead>
                 <tbody>
-                  {filtered.length === 0 ? (
+                  {displayedTxns.length === 0 ? (
                     <tr>
                       <td colSpan={5} className="px-5 py-12 text-center text-gray-400 text-sm">
                         No transactions found.
                       </td>
                     </tr>
                   ) : (
-                    filtered.map((t) => {
+                    displayedTxns.map((t) => {
                       const acct = accounts.find((a) => a.id === t.account_id);
                       const meta = getCategoryMeta(t.category);
                       return (

@@ -1,13 +1,14 @@
-import { getAccounts, getTransactions, getBudgets } from "@/lib/db";
+import { getAccounts, getTransactions, getBudgets, getCategories } from "@/lib/db";
 import BudgetsClient from "@/components/BudgetsClient";
 
 export const dynamic = "force-dynamic";
 
 export default async function BudgetsPage() {
-  const [accounts, transactions, budgets] = await Promise.all([
+  const [accounts, transactions, budgets, categories] = await Promise.all([
     getAccounts(),
     getTransactions(2, 2026),
     getBudgets(2, 2026),
+    getCategories(),
   ]);
 
   return (
@@ -15,6 +16,7 @@ export default async function BudgetsPage() {
       accounts={accounts}
       transactions={transactions}
       budgets={budgets}
+      categories={categories}
     />
   );
 }
