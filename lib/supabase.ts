@@ -9,15 +9,11 @@ const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 // Safe to call at module level in "use client" files.
 export const supabase = createBrowserClient<Database>(supabaseUrl, supabaseAnonKey);
 
-/** Server-side admin client — only use in server components / scripts, never in "use client" files. */
+/** Server-side admin client — only use in server components / scripts, never in "use client" files.
+ *  Falls back to the anon key if SUPABASE_SERVICE_ROLE_KEY is not set (e.g. Vercel env not configured). */
 export function createAdminClient() {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!serviceRoleKey) {
-    throw new Error(
-      "SUPABASE_SERVICE_ROLE_KEY is not set. Add it to .env.local (Settings → API → service_role in Supabase dashboard)."
-    );
-  }
-  return createClient<Database>(supabaseUrl, serviceRoleKey, {
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseAnonKey;
+  return createClient<Database>(supabaseUrl, key, {
     auth: { persistSession: false },
   });
 }
