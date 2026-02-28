@@ -65,7 +65,9 @@ export async function getCategories(): Promise<CategoryMeta[]> {
 
 export async function getBudgets(): Promise<DbBudget[]> {
   console.log(TAG, "getBudgets — fetching all permanent budgets");
-  const { data, error } = await supabase
+  // Use admin client so RLS never silently blocks server-side reads.
+  const db = createAdminClient();
+  const { data, error } = await db
     .from("budgets")
     .select("*");
   console.log(TAG, "getBudgets — error:", error, "| count:", data?.length ?? 0);
