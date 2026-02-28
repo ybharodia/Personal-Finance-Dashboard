@@ -12,13 +12,11 @@ export default async function DashboardPage() {
 
   const toStr = to.toISOString().slice(0, 10);
   const fromStr = from.toISOString().slice(0, 10);
-  const currentMonth = today.getMonth() + 1;
-  const currentYear = today.getFullYear();
 
   const [accounts, transactions, budgets] = await Promise.all([
     getAccounts(),
     getTransactionsByDateRange(fromStr, toStr),
-    getBudgets(currentMonth, currentYear),
+    getBudgets(),
   ]);
 
   return (

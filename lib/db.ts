@@ -63,19 +63,26 @@ export async function getCategories(): Promise<CategoryMeta[]> {
   return (data ?? []) as CategoryMeta[];
 }
 
-export async function getBudgets(
-  month: number,
-  year: number
-): Promise<DbBudget[]> {
-  console.log(TAG, `getBudgets — month: ${month}, year: ${year}`);
+export async function getBudgets(): Promise<DbBudget[]> {
+  console.log(TAG, "getBudgets — fetching all permanent budgets");
   const { data, error } = await supabase
     .from("budgets")
-    .select("*")
-    .eq("month", month)
-    .eq("year", year);
+    .select("*");
   console.log(TAG, "getBudgets — error:", error, "| count:", data?.length ?? 0);
   if (error) throw new Error(`getBudgets: ${error.message}`);
-  return data ?? [];
+
+  // Deduplicate by (category, subcategory): prefer permanent sentinel rows
+  // (month=0, year=0), otherwise keep the first row encountered.
+  // This handles existing month-scoped rows and new permanent ones gracefully.
+  const seen = new Map<string, DbBudget>();
+  for (const row of data ?? []) {
+    const key = `${row.category}::${row.subcategory}`;
+    const existing = seen.get(key);
+    if (!existing || (row.month === 0 && row.year === 0)) {
+      seen.set(key, row);
+    }
+  }
+  return Array.from(seen.values());
 }
 
 export async function getRecurringOverrides(): Promise<DbRecurringOverride[]> {
