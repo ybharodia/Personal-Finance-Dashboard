@@ -12,8 +12,6 @@ export default async function TransactionsPage() {
 
   const toStr = to.toISOString().slice(0, 10);
   const fromStr = from.toISOString().slice(0, 10);
-  const currentMonth = today.getMonth() + 1;
-  const currentYear = today.getFullYear();
 
   const [accounts, transactions, budgets, categories] = await Promise.all([
     getAccounts(),

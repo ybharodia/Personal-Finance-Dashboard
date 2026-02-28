@@ -243,8 +243,8 @@ function AddSubcategoryModal({
         category: catId,
         subcategory: trimmed,
         budgeted_amount: num,
-        month,
-        year,
+        month: 0,
+        year: 0,
       })
       .select()
       .single();
@@ -407,8 +407,8 @@ function BudgetEditModal({
             category: editing.catId,
             subcategory: trimmedName,
             budgeted_amount: num,
-            month,
-            year,
+            month: 0,
+            year: 0,
           })
           .select()
           .single();
