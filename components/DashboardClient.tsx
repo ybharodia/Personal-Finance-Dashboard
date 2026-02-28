@@ -241,6 +241,28 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
     return result;
   }, [transactions]);
 
+  // ── Monthly income for the last 12 months (bar chart) ─────────────────────
+  const monthlyIncome = useMemo(() => {
+    const result = [];
+    const now = new Date();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const y = d.getFullYear();
+      const m = d.getMonth();
+      const label = d.toLocaleDateString("en-US", { month: "short" });
+      const isCurrent = i === 0;
+      const total = transactions
+        .filter((t) => {
+          if (t.type !== "income") return false;
+          const td = new Date(t.date + "T00:00:00");
+          return td.getFullYear() === y && td.getMonth() === m;
+        })
+        .reduce((s, t) => s + t.amount, 0);
+      result.push({ label, total, isCurrent });
+    }
+    return result;
+  }, [transactions]);
+
   return (
     <div className="flex h-full">
       <AccountsPanel accounts={accounts} selectedAccount={selectedAccount} onSelect={setSelectedAccount} />
@@ -548,6 +570,48 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
                 </div>
                 <div className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: "#c7d2fe" }} />
+                  <span className="text-xs text-gray-400">Past months</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Income bar chart — last 12 months */}
+            <div className="mt-5 border-t border-gray-100 pt-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  Monthly Income
+                </h3>
+                <span className="text-xs text-gray-400">Last 12 months</span>
+              </div>
+              <ResponsiveContainer width="100%" height={130}>
+                <BarChart data={monthlyIncome} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" vertical={false} />
+                  <XAxis
+                    dataKey="label"
+                    tick={{ fontSize: 10, fill: "#9ca3af" }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <YAxis hide />
+                  <Tooltip
+                    formatter={(v: number | undefined) => [formatCurrency(v ?? 0), "Income"]}
+                    contentStyle={{ fontSize: 11, borderRadius: 8, border: "1px solid #e5e7eb" }}
+                    cursor={{ fill: "#f9fafb" }}
+                  />
+                  <Bar dataKey="total" radius={[3, 3, 0, 0]} maxBarSize={32}>
+                    {monthlyIncome.map((entry, i) => (
+                      <Cell key={i} fill={entry.isCurrent ? "#10b981" : "#a7f3d0"} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <div className="flex items-center gap-4 mt-1 justify-end">
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: "#10b981" }} />
+                  <span className="text-xs text-gray-400">Current month</span>
+                </div>
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-sm" style={{ backgroundColor: "#a7f3d0" }} />
                   <span className="text-xs text-gray-400">Past months</span>
                 </div>
               </div>
