@@ -72,13 +72,13 @@ export async function getBudgets(): Promise<DbBudget[]> {
   if (error) throw new Error(`getBudgets: ${error.message}`);
 
   // Deduplicate by (category, subcategory): prefer permanent sentinel rows
-  // (month=0, year=0), otherwise keep the first row encountered.
+  // (month=1, year=1900), otherwise keep the first row encountered.
   // This handles existing month-scoped rows and new permanent ones gracefully.
   const seen = new Map<string, DbBudget>();
   for (const row of data ?? []) {
     const key = `${row.category}::${row.subcategory}`;
     const existing = seen.get(key);
-    if (!existing || (row.month === 0 && row.year === 0)) {
+    if (!existing || (row.month === 1 && row.year === 1900)) {
       seen.set(key, row);
     }
   }

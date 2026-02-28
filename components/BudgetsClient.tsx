@@ -243,8 +243,8 @@ function AddSubcategoryModal({
         category: catId,
         subcategory: trimmed,
         budgeted_amount: num,
-        month: 0,
-        year: 0,
+        month: 1,
+        year: 1900,
       })
       .select()
       .single();
