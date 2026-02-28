@@ -18,7 +18,7 @@ export default async function DashboardPage() {
   const [accounts, transactions, budgets] = await Promise.all([
     getAccounts(),
     getTransactionsByDateRange(fromStr, toStr),
-    getBudgets(currentMonth, currentYear),
+    getBudgets(),
   ]);
 
   return (

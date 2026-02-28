@@ -7,7 +7,7 @@ export default async function BudgetsPage() {
   const [accounts, transactions, budgets, categories] = await Promise.all([
     getAccounts(),
     getTransactions(2, 2026),
-    getBudgets(2, 2026),
+    getBudgets(),
     getCategories(),
   ]);
 

@@ -63,16 +63,11 @@ export async function getCategories(): Promise<CategoryMeta[]> {
   return (data ?? []) as CategoryMeta[];
 }
 
-export async function getBudgets(
-  month: number,
-  year: number
-): Promise<DbBudget[]> {
-  console.log(TAG, `getBudgets — month: ${month}, year: ${year}`);
+export async function getBudgets(): Promise<DbBudget[]> {
+  console.log(TAG, `getBudgets — all months`);
   const { data, error } = await supabase
     .from("budgets")
-    .select("*")
-    .eq("month", month)
-    .eq("year", year);
+    .select("*");
   console.log(TAG, "getBudgets — error:", error, "| count:", data?.length ?? 0);
   if (error) throw new Error(`getBudgets: ${error.message}`);
   return data ?? [];

@@ -373,7 +373,22 @@ function BudgetEditModal({
     setSaving(true);
     setError(null);
     try {
+      // If the subcategory name changed, rename it across ALL months and ALL transactions first
+      if (nameChanged) {
+        await supabase
+          .from("budgets")
+          .update({ subcategory: trimmedName })
+          .eq("category", editing.catId)
+          .eq("subcategory", editing.subcategory);
+        await supabase
+          .from("transactions")
+          .update({ subcategory: trimmedName })
+          .eq("category", editing.catId)
+          .eq("subcategory", editing.subcategory);
+      }
+
       if (editing.existingId) {
+        // Update this month's budget amount (and name if changed — already handled above)
         const { data, error: dbErr } = await supabase
           .from("budgets")
           .update({ budgeted_amount: num, subcategory: trimmedName })
@@ -381,22 +396,9 @@ function BudgetEditModal({
           .select()
           .single();
         if (dbErr) throw dbErr;
-        if (nameChanged) {
-          await supabase
-            .from("transactions")
-            .update({ subcategory: trimmedName })
-            .eq("category", editing.catId)
-            .eq("subcategory", editing.subcategory);
-        }
         onSave(data as DbBudget);
       } else {
-        if (nameChanged) {
-          await supabase
-            .from("transactions")
-            .update({ subcategory: trimmedName })
-            .eq("category", editing.catId)
-            .eq("subcategory", editing.subcategory);
-        }
+        // No budget row for this month yet — insert one
         const newId = crypto.randomUUID();
         const { data, error: dbErr } = await supabase
           .from("budgets")
@@ -950,9 +952,19 @@ export default function BudgetsClient({
   function handleBudgetSaved(saved: DbBudget) {
     const nameChanged = editing && saved.subcategory !== editing.subcategory;
     setLocalBudgets((prev) => {
-      const exists = prev.find((b) => b.id === saved.id);
-      if (exists) return prev.map((b) => (b.id === saved.id ? saved : b));
-      return [...prev, saved];
+      // If the subcategory was renamed, update ALL local budget rows with the old name
+      let updated = prev;
+      if (nameChanged && editing) {
+        updated = prev.map((b) =>
+          b.category === editing.catId && b.subcategory === editing.subcategory
+            ? { ...b, subcategory: saved.subcategory }
+            : b
+        );
+      }
+      // Then update or insert the specific saved row
+      const exists = updated.find((b) => b.id === saved.id);
+      if (exists) return updated.map((b) => (b.id === saved.id ? saved : b));
+      return [...updated, saved];
     });
     if (nameChanged && editing) {
       // Hide the old txn-derived row immediately; router.refresh() will sync transactions
@@ -1019,12 +1031,16 @@ export default function BudgetsClient({
     setEditingTxn(null);
   }
 
-  async function handleDeleteSubcategory(catId: string, subName: string, budgetId: string | null) {
-    // 1. Delete the budget row if it exists
-    if (budgetId) {
-      await supabase.from("budgets").delete().eq("id", budgetId);
-      setLocalBudgets((prev) => prev.filter((b) => b.id !== budgetId));
-    }
+  async function handleDeleteSubcategory(catId: string, subName: string, _budgetId: string | null) {
+    // 1. Delete ALL budget rows for this subcategory across ALL months (makes deletion permanent)
+    await supabase
+      .from("budgets")
+      .delete()
+      .eq("category", catId)
+      .eq("subcategory", subName);
+    setLocalBudgets((prev) =>
+      prev.filter((b) => !(b.category === catId && b.subcategory === subName))
+    );
     // 2. Clear subcategory on affected transactions (don't delete them)
     await supabase
       .from("transactions")
@@ -1038,28 +1054,43 @@ export default function BudgetsClient({
   // Build category views using dynamic localCategories
   const categoryViews = useMemo((): CatView[] => {
     return localCategories.map((meta) => {
+      // All budget rows for this category across ALL months — determines which subcategories exist permanently
       const catBudgets = localBudgets.filter((b) => b.category === meta.id);
+      // Only this month's budget rows — used for the budgeted dollar amounts
+      const catBudgetsThisMonth = catBudgets.filter(
+        (b) => b.month === selectedMonth && b.year === selectedYear
+      );
       // Include both expenses and income (exclude only transfers)
       const catTxns = selectedTransactions.filter((t) => t.type !== "transfer" && t.category === meta.id);
 
+      // All unique subcategory names from ALL months — subcategories are month-independent
+      const allSubNames = new Set(catBudgets.map((b) => b.subcategory));
+
       const subcatMap = new Map<string, SubView>();
-      for (const b of catBudgets) {
-        const subTxns = catTxns.filter((t) => t.subcategory === b.subcategory);
-        subcatMap.set(b.subcategory, {
-          name: b.subcategory,
-          budgeted: b.budgeted_amount,
+
+      // Build an entry for every known subcategory (from any month's budget rows)
+      for (const subName of allSubNames) {
+        const subKey = `${meta.id}|||${subName}`;
+        if (deletedSubKeys.has(subKey)) continue;
+        // Budget amount comes from this month's row only; falls back to 0 if no row for current month
+        const budgetThisMonth = catBudgetsThisMonth.find((b) => b.subcategory === subName);
+        const subTxns = catTxns.filter((t) => t.subcategory === subName);
+        subcatMap.set(subName, {
+          name: subName,
+          budgeted: budgetThisMonth?.budgeted_amount ?? 0,
           spent: subTxns.reduce((s, t) => s + t.amount, 0),
           transactions: subTxns,
-          budgetId: b.id,
+          // budgetId references the current-month row (for edit/save); null if no row for this month
+          budgetId: budgetThisMonth?.id ?? null,
         });
       }
 
-      const budgetedSubs = new Set(catBudgets.map((b) => b.subcategory));
+      // Also surface transaction-derived subcategories that have no budget row in any month
       const txnSubs = [...new Set(catTxns.map((t) => t.subcategory))];
       for (const sub of txnSubs) {
         const subKey = `${meta.id}|||${sub}`;
-        // Skip if already covered by a budget row, or if explicitly deleted this session
-        if (!budgetedSubs.has(sub) && !deletedSubKeys.has(subKey)) {
+        // Skip if already covered by a budget row (any month), or explicitly deleted this session
+        if (!allSubNames.has(sub) && !deletedSubKeys.has(subKey)) {
           const subTxns = catTxns.filter((t) => t.subcategory === sub);
           subcatMap.set(sub, {
             name: sub,
@@ -1081,7 +1112,7 @@ export default function BudgetsClient({
         subcategories,
       };
     });
-  }, [localBudgets, localCategories, selectedTransactions, deletedSubKeys]);
+  }, [localBudgets, localCategories, selectedTransactions, deletedSubKeys, selectedMonth, selectedYear]);
 
   const spendingCategories = categoryViews.filter((c) => c.name !== "Income");
 

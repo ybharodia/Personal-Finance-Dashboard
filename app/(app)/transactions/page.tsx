@@ -18,7 +18,7 @@ export default async function TransactionsPage() {
   const [accounts, transactions, budgets, categories] = await Promise.all([
     getAccounts(),
     getTransactionsByDateRange(fromStr, toStr),
-    getBudgets(currentMonth, currentYear),
+    getBudgets(),
     getCategories(),
   ]);
 
