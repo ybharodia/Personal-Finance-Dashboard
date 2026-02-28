@@ -13,9 +13,10 @@ import {
   Legend,
   ResponsiveContainer,
 } from "recharts";
-import { formatCurrency, BUDGET_CATEGORIES, getCategoryMeta } from "@/lib/data";
+import { formatCurrency, getCategoryMeta } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
+import TransactionModal from "@/components/TransactionModal";
 import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -556,7 +557,7 @@ function CategoryRow({
   onDelete,
   onDeleteSubcategory,
   onAddSubcategory,
-  onTransactionCategoryChange,
+  onEditTransaction,
 }: {
   cat: CatView;
   accounts: DbAccount[];
@@ -571,15 +572,13 @@ function CategoryRow({
   onDelete: (catId: string) => void;
   onDeleteSubcategory: (catId: string, subName: string, budgetId: string | null) => Promise<void>;
   onAddSubcategory: (catId: string, catName: string, catColor: string) => void;
-  onTransactionCategoryChange: (txnId: string, newCategory: string) => void;
+  onEditTransaction: (tx: DbTransaction) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
   const [expandedSub, setExpandedSub] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [confirmDeleteSub, setConfirmDeleteSub] = useState<string | null>(null);
   const [deletingSub, setDeletingSub] = useState<string | null>(null);
-  const [editingTxnId, setEditingTxnId] = useState<string | null>(null);
-  const [txnErrors, setTxnErrors] = useState<Record<string, string>>({});
 
   const remaining = cat.budgeted - cat.spent;
   const pct = cat.budgeted > 0 ? Math.min((cat.spent / cat.budgeted) * 100, 100) : 0;
@@ -830,7 +829,6 @@ function CategoryRow({
                     {sc.transactions.map((t) => {
                       const acct = accounts.find((a) => a.id === t.account_id);
                       const catMeta = getCategoryMeta(t.category);
-                      const isEditingCat = editingTxnId === t.id;
                       return (
                         <div
                           key={t.id}
@@ -846,58 +844,18 @@ function CategoryRow({
                             </div>
                           </div>
                           <div className="flex items-center gap-3 shrink-0 ml-4">
-                            <div className="flex items-center gap-1.5">
-                              {isEditingCat ? (
-                                <select
-                                  // eslint-disable-next-line jsx-a11y/no-autofocus
-                                  autoFocus
-                                  defaultValue={t.category}
-                                  onChange={async (e) => {
-                                    const newCat = e.target.value;
-                                    setEditingTxnId(null);
-                                    if (newCat === t.category) return;
-                                    try {
-                                      const res = await fetch(`/api/transactions/${t.id}`, {
-                                        method: "PATCH",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ category: newCat }),
-                                      });
-                                      if (!res.ok) {
-                                        const json = await res.json();
-                                        throw new Error(json.error ?? "Failed to update");
-                                      }
-                                      onTransactionCategoryChange(t.id, newCat);
-                                    } catch (err: any) {
-                                      setTxnErrors((prev) => ({ ...prev, [t.id]: err.message ?? "Failed to save" }));
-                                      setTimeout(() => setTxnErrors((prev) => { const n = { ...prev }; delete n[t.id]; return n; }), 3000);
-                                    }
-                                  }}
-                                  onBlur={() => setEditingTxnId(null)}
-                                  onKeyDown={(e) => { if (e.key === "Escape") setEditingTxnId(null); }}
-                                  className="text-xs border border-gray-200 rounded-md px-1.5 py-0.5 bg-white text-gray-600 focus:outline-none focus:ring-1 focus:ring-indigo-400 cursor-pointer"
-                                >
-                                  {BUDGET_CATEGORIES.map((cat) => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                  ))}
-                                </select>
-                              ) : (
-                                <button
-                                  onClick={(e) => { e.stopPropagation(); setEditingTxnId(t.id); }}
-                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium transition-colors hover:opacity-80"
-                                  style={{
-                                    backgroundColor: (catMeta?.color ?? "#94a3b8") + "20",
-                                    color: catMeta?.color ?? "#94a3b8",
-                                  }}
-                                  title="Click to change category"
-                                >
-                                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: catMeta?.color ?? "#94a3b8" }} />
-                                  {catMeta?.name ?? t.category}
-                                </button>
-                              )}
-                              {txnErrors[t.id] && (
-                                <span className="text-xs text-red-500">{txnErrors[t.id]}</span>
-                              )}
-                            </div>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); onEditTransaction(t); }}
+                              className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium transition-colors hover:opacity-80"
+                              style={{
+                                backgroundColor: (catMeta?.color ?? "#94a3b8") + "20",
+                                color: catMeta?.color ?? "#94a3b8",
+                              }}
+                              title="Click to edit transaction"
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: catMeta?.color ?? "#94a3b8" }} />
+                              {catMeta?.name ?? t.category}
+                            </button>
                             <span className={`text-xs font-semibold tabular-nums ${isIncome ? "text-emerald-600" : "text-red-500"}`}>
                               {isIncome ? "+" : "−"}{formatCurrency(t.amount)}
                             </span>
@@ -1054,10 +1012,11 @@ export default function BudgetsClient({
     }
   }
 
-  function handleTransactionCategoryChange(txnId: string, newCategory: string) {
-    setSelectedTransactions((prev) =>
-      prev.map((t) => (t.id === txnId ? { ...t, category: newCategory } : t))
-    );
+  const [editingTxn, setEditingTxn] = useState<DbTransaction | null>(null);
+
+  function handleTxnSave(updatedTxns: DbTransaction[]) {
+    setSelectedTransactions(updatedTxns);
+    setEditingTxn(null);
   }
 
   async function handleDeleteSubcategory(catId: string, subName: string, budgetId: string | null) {
@@ -1329,7 +1288,7 @@ export default function BudgetsClient({
                 onAddSubcategory={(catId, catName, catColor) =>
                   setAddingSubFor({ catId, catName, catColor })
                 }
-                onTransactionCategoryChange={handleTransactionCategoryChange}
+                onEditTransaction={setEditingTxn}
               />
             ))
           )}
@@ -1366,6 +1325,18 @@ export default function BudgetsClient({
           year={selectedYear}
           onSave={handleBudgetSaved}
           onClose={() => setEditing(null)}
+        />
+      )}
+
+      {/* Edit Transaction modal */}
+      {editingTxn && (
+        <TransactionModal
+          tx={editingTxn}
+          budgets={localBudgets}
+          categories={localCategories}
+          onClose={() => setEditingTxn(null)}
+          onSave={handleTxnSave}
+          allTransactions={selectedTransactions}
         />
       )}
 
