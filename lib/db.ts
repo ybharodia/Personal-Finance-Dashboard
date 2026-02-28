@@ -1,5 +1,5 @@
-import { supabase } from "./supabase";
-import type { DbAccount, DbTransaction, DbBudget } from "./database.types";
+import { supabase, createAdminClient } from "./supabase";
+import type { DbAccount, DbTransaction, DbBudget, DbRecurringOverride } from "./database.types";
 import type { CategoryMeta } from "./data";
 
 const TAG = "[db]";
@@ -75,5 +75,18 @@ export async function getBudgets(
     .eq("year", year);
   console.log(TAG, "getBudgets — error:", error, "| count:", data?.length ?? 0);
   if (error) throw new Error(`getBudgets: ${error.message}`);
+  return data ?? [];
+}
+
+export async function getRecurringOverrides(): Promise<DbRecurringOverride[]> {
+  console.log(TAG, "getRecurringOverrides");
+  // Use admin client so RLS never silently blocks server-side reads.
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("recurring_overrides")
+    .select("*")
+    .order("created_at", { ascending: false });
+  console.log(TAG, "getRecurringOverrides — error:", error, "| count:", data?.length ?? 0);
+  if (error) throw new Error(`getRecurringOverrides: ${error.message}`);
   return data ?? [];
 }

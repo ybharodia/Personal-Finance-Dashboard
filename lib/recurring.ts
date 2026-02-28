@@ -4,6 +4,8 @@ export type RecurringFrequency = "weekly" | "biweekly" | "monthly";
 
 export type RecurringTransaction = {
   merchant: string;
+  /** Normalized, stable identifier used to match/store override rules. */
+  merchantKey: string;
   averageAmount: number;
   frequency: RecurringFrequency;
   intervalDays: number;
@@ -15,6 +17,13 @@ export type RecurringTransaction = {
   subcategory: string | null;
 };
 
+// Keywords in category/subcategory that indicate utility bills
+const UTILITY_KEYWORDS = [
+  "utilities", "electric", "electricity", "gas", "natural gas",
+  "water", "internet", "broadband", "cable", "sewer", "trash", "garbage",
+  "telecom", "telephone",
+];
+
 function normalizeMerchant(description: string): string {
   return description
     .toLowerCase()
@@ -23,6 +32,26 @@ function normalizeMerchant(description: string): string {
     .replace(/[^a-z0-9\s]/g, " ")  // remove remaining special chars
     .replace(/\s+/g, " ")          // collapse whitespace
     .trim();
+}
+
+/**
+ * Stable merchant identifier for override storage and matching.
+ * Use this everywhere a merchant_key is needed (DB, UI, comparisons).
+ */
+export function toMerchantKey(description: string): string {
+  return normalizeMerchant(description);
+}
+
+// Fuzzy prefix key: first 8 chars of normalized name.
+// This groups "DUKE ENERGY" and "DUKE ENERGY PMT" under the same key.
+function merchantPrefixKey(normalized: string): string {
+  return normalized.slice(0, 8).trimEnd();
+}
+
+function isUtility(tx: DbTransaction): boolean {
+  const sub = (tx.subcategory ?? "").toLowerCase();
+  const cat = (tx.category ?? "").toLowerCase();
+  return UTILITY_KEYWORDS.some((kw) => sub.includes(kw) || cat.includes(kw));
 }
 
 function daysBetween(a: string, b: string): number {
@@ -72,40 +101,86 @@ function mostCommon<T>(values: T[]): T | null {
   return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
+function distinctMonths(txns: DbTransaction[]): number {
+  return new Set(txns.map((t) => t.date.slice(0, 7))).size;
+}
+
+/**
+ * Build a RecurringTransaction from a manually force-included set of transactions.
+ * Used both server-side (page.tsx) and client-side (RecurringClient optimistic add).
+ */
+export function buildManualRecurring(
+  txns: DbTransaction[],
+  merchantKey: string
+): RecurringTransaction {
+  const expenses = txns.filter((t) => t.type !== "income");
+  const sorted = [...expenses].sort((a, b) => a.date.localeCompare(b.date));
+
+  const amounts = sorted.map((t) => Math.abs(t.amount));
+  const meanAmount =
+    amounts.length > 0 ? amounts.reduce((a, b) => a + b, 0) / amounts.length : 0;
+
+  const today = new Date().toISOString().split("T")[0];
+  const lastDate = sorted.length > 0 ? sorted[sorted.length - 1].date : today;
+  const nextPredictedDate = addDays(lastDate, 30);
+
+  const category = mostCommon(sorted.map((t) => t.category).filter(Boolean) as string[]);
+  const subcategory = mostCommon(
+    sorted.map((t) => t.subcategory).filter(Boolean) as string[]
+  );
+  const merchant = sorted.length > 0 ? sorted[sorted.length - 1].description : merchantKey;
+
+  return {
+    merchant,
+    merchantKey,
+    averageAmount: meanAmount,
+    frequency: "monthly",
+    intervalDays: 30,
+    lastDate,
+    nextPredictedDate,
+    monthlyAmount: meanAmount,
+    occurrences: sorted.length,
+    category: category ?? null,
+    subcategory: subcategory ?? null,
+  };
+}
+
 export function detectRecurringTransactions(
   transactions: DbTransaction[]
 ): RecurringTransaction[] {
-  // Only analyze expense/transfer transactions
   const expenses = transactions.filter((t) => t.type !== "income");
 
-  // Group by normalized merchant name
-  const groups = new Map<string, DbTransaction[]>();
+  // ===== Pass 1: Standard detection (exact normalized name) =====
+  // Preserves all existing recurring detections.
+  // Utilities get a looser 45% variance threshold instead of 20%.
+  const exactGroups = new Map<string, DbTransaction[]>();
   for (const tx of expenses) {
     const key = normalizeMerchant(tx.description);
-    if (key.length < 3) continue; // skip very short/empty keys
-    if (!groups.has(key)) groups.set(key, []);
-    groups.get(key)!.push(tx);
+    if (key.length < 3) continue;
+    if (!exactGroups.has(key)) exactGroups.set(key, []);
+    exactGroups.get(key)!.push(tx);
   }
 
   const results: RecurringTransaction[] = [];
+  const capturedTxIds = new Set<string>();
 
-  for (const txns of groups.values()) {
-    // Need at least 3 occurrences for reliable detection
+  for (const txns of exactGroups.values()) {
     if (txns.length < 3) continue;
 
-    // Sort chronologically
     const sorted = [...txns].sort((a, b) => a.date.localeCompare(b.date));
-
-    // Check amount consistency (within 20% variance from mean)
     const amounts = sorted.map((t) => Math.abs(t.amount));
     const meanAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
-    if (meanAmount < 0.01) continue; // skip zero-amount transactions
+    if (meanAmount < 0.01) continue;
+
+    // Utilities allow up to 45% variance (seasonal fluctuation); others stay at 20%
+    const hasUtility = txns.some(isUtility);
+    const varianceThreshold = hasUtility ? 0.45 : 0.20;
+
     const withinVariance = amounts.every(
-      (a) => Math.abs(a - meanAmount) / meanAmount <= 0.20
+      (a) => Math.abs(a - meanAmount) / meanAmount <= varianceThreshold
     );
     if (!withinVariance) continue;
 
-    // Compute gaps between consecutive transactions
     const gaps: number[] = [];
     for (let i = 1; i < sorted.length; i++) {
       gaps.push(daysBetween(sorted[i - 1].date, sorted[i].date));
@@ -115,32 +190,89 @@ export function detectRecurringTransactions(
     if (!frequencyResult) continue;
 
     const { frequency, intervalDays } = frequencyResult;
-
     const lastDate = sorted[sorted.length - 1].date;
     const nextPredictedDate = addDays(lastDate, intervalDays);
 
-    // Monthly equivalent spend
     const monthlyMultiplier =
       frequency === "weekly" ? 4.33 : frequency === "biweekly" ? 2.17 : 1.0;
     const monthlyAmount = meanAmount * monthlyMultiplier;
 
-    // Most common category and subcategory
     const category = mostCommon(txns.map((t) => t.category).filter(Boolean) as string[]);
     const subcategory = mostCommon(
       txns.map((t) => t.subcategory).filter(Boolean) as string[]
     );
-
-    // Use the most recent transaction's description as the display name
     const merchant = sorted[sorted.length - 1].description;
 
     results.push({
       merchant,
+      merchantKey: toMerchantKey(merchant),
       averageAmount: meanAmount,
       frequency,
       intervalDays,
       lastDate,
       nextPredictedDate,
       monthlyAmount,
+      occurrences: txns.length,
+      category: category ?? null,
+      subcategory: subcategory ?? null,
+    });
+
+    for (const tx of txns) capturedTxIds.add(tx.id);
+  }
+
+  // ===== Pass 2: Utility detection (fuzzy prefix grouping, relaxed rules) =====
+  // Catches utility bills that:
+  //   - Have varying merchant name suffixes (e.g. "DUKE ENERGY" vs "DUKE ENERGY PMT")
+  //   - Appear in fewer than 3 transactions but in 2+ distinct months
+  //   - Weren't already detected in Pass 1
+  const utilityTxns = expenses.filter(
+    (t) => isUtility(t) && !capturedTxIds.has(t.id)
+  );
+
+  const prefixGroups = new Map<string, DbTransaction[]>();
+  for (const tx of utilityTxns) {
+    const normalized = normalizeMerchant(tx.description);
+    if (normalized.length < 3) continue;
+    const key = merchantPrefixKey(normalized);
+    if (!prefixGroups.has(key)) prefixGroups.set(key, []);
+    prefixGroups.get(key)!.push(tx);
+  }
+
+  for (const txns of prefixGroups.values()) {
+    if (txns.length < 2) continue;
+
+    const sorted = [...txns].sort((a, b) => a.date.localeCompare(b.date));
+
+    // Must appear in at least 2 distinct calendar months
+    if (distinctMonths(sorted) < 2) continue;
+
+    const amounts = sorted.map((t) => Math.abs(t.amount));
+    const meanAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
+    if (meanAmount < 0.01) continue;
+
+    // Allow up to 45% variance for utility bills (seasonal fluctuation)
+    const withinVariance = amounts.every(
+      (a) => Math.abs(a - meanAmount) / meanAmount <= 0.45
+    );
+    if (!withinVariance) continue;
+
+    const lastDate = sorted[sorted.length - 1].date;
+    const nextPredictedDate = addDays(lastDate, 30);
+    const merchant = sorted[sorted.length - 1].description;
+    const category = mostCommon(txns.map((t) => t.category).filter(Boolean) as string[]);
+    const subcategory = mostCommon(
+      txns.map((t) => t.subcategory).filter(Boolean) as string[]
+    );
+
+    results.push({
+      merchant,
+      merchantKey: toMerchantKey(merchant),
+      averageAmount: meanAmount,
+      frequency: "monthly",
+      intervalDays: 30,
+      lastDate,
+      nextPredictedDate,
+      monthlyAmount: meanAmount,
       occurrences: txns.length,
       category: category ?? null,
       subcategory: subcategory ?? null,
