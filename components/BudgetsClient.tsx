@@ -1054,34 +1054,30 @@ export default function BudgetsClient({
   // Build category views using dynamic localCategories
   const categoryViews = useMemo((): CatView[] => {
     return localCategories.map((meta) => {
-      // All budget rows for this category across ALL months — determines which subcategories exist permanently
+      // All budget rows for this category — getBudgets() already deduplicates to one row per
+      // subcategory, preferring the permanent sentinel (month=1, year=1900) over month-specific rows.
       const catBudgets = localBudgets.filter((b) => b.category === meta.id);
-      // Only this month's budget rows — used for the budgeted dollar amounts
-      const catBudgetsThisMonth = catBudgets.filter(
-        (b) => b.month === selectedMonth && b.year === selectedYear
-      );
       // Include both expenses and income (exclude only transfers)
       const catTxns = selectedTransactions.filter((t) => t.type !== "transfer" && t.category === meta.id);
 
-      // All unique subcategory names from ALL months — subcategories are month-independent
+      // All unique subcategory names — subcategories are month-independent
       const allSubNames = new Set(catBudgets.map((b) => b.subcategory));
 
       const subcatMap = new Map<string, SubView>();
 
-      // Build an entry for every known subcategory (from any month's budget rows)
+      // Build an entry for every known subcategory
       for (const subName of allSubNames) {
         const subKey = `${meta.id}|||${subName}`;
         if (deletedSubKeys.has(subKey)) continue;
-        // Budget amount comes from this month's row only; falls back to 0 if no row for current month
-        const budgetThisMonth = catBudgetsThisMonth.find((b) => b.subcategory === subName);
+        // Budget amount comes from the permanent (or only) row for this subcategory
+        const budgetRow = catBudgets.find((b) => b.subcategory === subName);
         const subTxns = catTxns.filter((t) => t.subcategory === subName);
         subcatMap.set(subName, {
           name: subName,
-          budgeted: budgetThisMonth?.budgeted_amount ?? 0,
+          budgeted: budgetRow?.budgeted_amount ?? 0,
           spent: subTxns.reduce((s, t) => s + t.amount, 0),
           transactions: subTxns,
-          // budgetId references the current-month row (for edit/save); null if no row for this month
-          budgetId: budgetThisMonth?.id ?? null,
+          budgetId: budgetRow?.id ?? null,
         });
       }
 
@@ -1112,7 +1108,7 @@ export default function BudgetsClient({
         subcategories,
       };
     });
-  }, [localBudgets, localCategories, selectedTransactions, deletedSubKeys, selectedMonth, selectedYear]);
+  }, [localBudgets, localCategories, selectedTransactions, deletedSubKeys]);
 
   const spendingCategories = categoryViews.filter((c) => c.name !== "Income");
 
