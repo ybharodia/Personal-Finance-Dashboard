@@ -61,6 +61,23 @@ function fmtDollars(n: number): string {
   }).format(n);
 }
 
+// Accountant-style: negatives shown as ($1,234) in red, positives as $1,234 in green
+function fmtAccounting(n: number): string {
+  const abs = new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(Math.abs(n));
+  return n < 0 ? `(${abs})` : abs;
+}
+
+// Percentage with 1 decimal, parentheses for negatives
+function fmtPct(n: number): string {
+  const abs = Math.abs(n).toFixed(1) + "%";
+  return n < 0 ? `(${abs})` : abs;
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export default function TableClient({
@@ -76,12 +93,21 @@ export default function TableClient({
 
   // ── Data processing ──────────────────────────────────────────────────────────
 
+  // Collect category IDs that have income-type transactions — these must be
+  // excluded from expense sections to prevent income appearing twice.
+  const incomeCategoryIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const t of transactions) {
+      if (t.type === "income") ids.add(t.category);
+    }
+    return ids;
+  }, [transactions]);
+
   // Expense amount map: catId → subName → [12 months of spending]
   const expenseAmtMap = useMemo(() => {
     const map = new Map<string, Map<string, number[]>>();
     for (const t of transactions) {
       if (t.type !== "expense") continue;
-      // Parse date as local date to avoid UTC offset shifting the month
       const parts = t.date.split("-");
       const month = parseInt(parts[1], 10) - 1; // 0-indexed
       if (!map.has(t.category)) map.set(t.category, new Map());
@@ -102,7 +128,7 @@ export default function TableClient({
     return map;
   }, [budgets]);
 
-  // Income section data (grouped by subcategory)
+  // Income section data (grouped by subcategory label)
   const incomeSection = useMemo((): IncomeSection | null => {
     const incTxns = transactions.filter((t) => t.type === "income");
     if (incTxns.length === 0) return null;
@@ -129,14 +155,16 @@ export default function TableClient({
     return { rows, sectionMonthly, sectionTotal: sectionMonthly.reduce((a, b) => a + b, 0) };
   }, [transactions]);
 
-  // Expense sections ordered by category sort_order (from DB)
+  // Expense sections — skip any category whose ID is used for income transactions
   const sections = useMemo((): Section[] => {
     return categories
       .map((cat) => {
+        // Skip income-only categories so they don't appear under expense sections
+        if (incomeCategoryIds.has(cat.id)) return null;
+
         const expCatMap = expenseAmtMap.get(cat.id);
         const budCatMap = budgetMap.get(cat.id);
 
-        // Collect subcategories from budgets AND transactions
         const subNames = new Set<string>([
           ...Array.from(budCatMap?.keys() ?? []),
           ...Array.from(expCatMap?.keys() ?? []),
@@ -175,7 +203,7 @@ export default function TableClient({
         };
       })
       .filter(Boolean) as Section[];
-  }, [categories, expenseAmtMap, budgetMap]);
+  }, [categories, incomeCategoryIds, expenseAmtMap, budgetMap]);
 
   // Grand totals across all expense sections
   const grandMonthly = useMemo(
@@ -186,6 +214,32 @@ export default function TableClient({
   const grandBudget = sections.reduce((s, sec) => s + sec.catBudget, 0);
   const grandAnnualBudget = grandBudget * 12;
   const grandVariance = grandAnnualBudget - grandTotal;
+
+  // Net Position: income minus expenses per month
+  const netMonthly = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, i) =>
+        (incomeSection?.sectionMonthly[i] ?? 0) - grandMonthly[i]
+      ),
+    [incomeSection, grandMonthly]
+  );
+  const annualNet = netMonthly.reduce((a, b) => a + b, 0);
+
+  // Savings rate per month: net / income × 100 (null when no income)
+  const savingsRateMonthly = useMemo(
+    () =>
+      Array.from({ length: 12 }, (_, i) => {
+        const income = incomeSection?.sectionMonthly[i] ?? 0;
+        if (income === 0) return null;
+        return (netMonthly[i] / income) * 100;
+      }),
+    [incomeSection, netMonthly]
+  );
+  const annualSavingsRate = useMemo(() => {
+    const totalIncome = incomeSection?.sectionTotal ?? 0;
+    if (totalIncome === 0) return null;
+    return (annualNet / totalIncome) * 100;
+  }, [incomeSection, annualNet]);
 
   // ── Column helpers ──────────────────────────────────────────────────────────
 
@@ -205,7 +259,6 @@ export default function TableClient({
 
   // ── Cell renderers ───────────────────────────────────────────────────────────
 
-  // Standard expense data cell
   function ExpenseCell({ amount, monthIdx, bold = false }: { amount: number; monthIdx: number; bold?: boolean }) {
     const future = isFutureMonth(monthIdx);
     const current = isCurrentMonthCol(monthIdx);
@@ -220,7 +273,6 @@ export default function TableClient({
     );
   }
 
-  // Income data cell (green text)
   function IncomeCell({ amount, monthIdx }: { amount: number; monthIdx: number }) {
     const future = isFutureMonth(monthIdx);
     const current = isCurrentMonthCol(monthIdx);
@@ -235,25 +287,25 @@ export default function TableClient({
     );
   }
 
-  // Section header row (dark band with sticky first cell)
+  // Section header row — dark slate band; first cell is sticky so the label
+  // stays pinned when scrolling right while the empty cells behind it scroll away.
   function SectionHeaderRow({ label }: { label: string }) {
     return (
       <tr>
         <td className="sticky left-0 z-10 bg-slate-800 text-white px-4 py-2.5 font-bold text-[11px] uppercase tracking-widest whitespace-nowrap">
           {label}
         </td>
-        <td className="bg-slate-800" /> {/* Budget */}
+        <td className="bg-slate-800" />
         {MONTHS_SHORT.map((_, i) => (
-          <td key={i} className={`${isCurrentMonthCol(i) ? "bg-slate-700" : "bg-slate-800"}`} />
+          <td key={i} className={isCurrentMonthCol(i) ? "bg-slate-700" : "bg-slate-800"} />
         ))}
-        <td className="bg-slate-800" /> {/* Annual Total */}
-        <td className="bg-slate-800" /> {/* Annual Budget */}
-        <td className="bg-slate-800" /> {/* Variance */}
+        <td className="bg-slate-800" />
+        <td className="bg-slate-800" />
+        <td className="bg-slate-800" />
       </tr>
     );
   }
 
-  // Category subtotal row
   function CategoryTotalRow({ section }: { section: Section }) {
     return (
       <tr className="bg-gray-100">
@@ -319,22 +371,26 @@ export default function TableClient({
         </div>
       </div>
 
-      {/* Scrollable table area */}
+      {/* Scrollable table */}
       <div className="flex-1 overflow-auto">
         <table className="border-collapse text-sm" style={{ width: "max-content", minWidth: "100%" }}>
-          {/* Sticky header row */}
+          {/* Sticky column-width hints */}
+          <colgroup>
+            <col style={{ minWidth: 220 }} />
+            <col style={{ minWidth: 90 }} />
+            {MONTHS_SHORT.map((m) => <col key={m} style={{ minWidth: 80 }} />)}
+            <col style={{ minWidth: 100 }} />
+            <col style={{ minWidth: 105 }} />
+            <col style={{ minWidth: 100 }} />
+          </colgroup>
+
+          {/* Sticky header */}
           <thead>
             <tr className="sticky top-0 z-20">
-              <th
-                className="sticky left-0 z-30 bg-gray-900 text-white text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-widest whitespace-nowrap border-r border-gray-700"
-                style={{ minWidth: 220 }}
-              >
+              <th className="sticky left-0 z-30 bg-gray-900 text-white text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-widest whitespace-nowrap border-r border-gray-700">
                 Category / Subcategory
               </th>
-              <th
-                className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-blue-300 whitespace-nowrap"
-                style={{ minWidth: 90 }}
-              >
+              <th className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-blue-300 whitespace-nowrap">
                 Budget
               </th>
               {MONTHS_SHORT.map((m, i) => (
@@ -343,34 +399,24 @@ export default function TableClient({
                   className={`text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-white whitespace-nowrap ${
                     isCurrentMonthCol(i) ? "bg-blue-800" : "bg-gray-900"
                   }`}
-                  style={{ minWidth: 80 }}
                 >
                   {m}
                 </th>
               ))}
-              <th
-                className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-white whitespace-nowrap border-l border-gray-700"
-                style={{ minWidth: 100 }}
-              >
+              <th className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-white whitespace-nowrap border-l border-gray-700">
                 Annual Total
               </th>
-              <th
-                className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-blue-300 whitespace-nowrap"
-                style={{ minWidth: 105 }}
-              >
+              <th className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-blue-300 whitespace-nowrap">
                 Annual Budget
               </th>
-              <th
-                className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-white whitespace-nowrap"
-                style={{ minWidth: 100 }}
-              >
+              <th className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-white whitespace-nowrap">
                 Variance
               </th>
             </tr>
           </thead>
 
           <tbody>
-            {/* ── Income section ──────────────────────────────────────────────── */}
+            {/* ── 1. INCOME ─────────────────────────────────────────────────── */}
             {incomeSection && (
               <>
                 <SectionHeaderRow label="Income" />
@@ -398,7 +444,6 @@ export default function TableClient({
                   </tr>
                 ))}
 
-                {/* Income total row */}
                 <tr className="bg-gray-100">
                   <td className="sticky left-0 z-10 bg-gray-100 px-4 py-2 pl-4 text-gray-800 font-semibold border-r border-gray-200 whitespace-nowrap text-[13px]">
                     Income Total
@@ -416,7 +461,7 @@ export default function TableClient({
               </>
             )}
 
-            {/* ── Expense sections ────────────────────────────────────────────── */}
+            {/* ── 2–10. EXPENSE CATEGORIES ──────────────────────────────────── */}
             {sections.map((section) => (
               <Fragment key={section.id}>
                 <SectionHeaderRow label={section.name} />
@@ -460,7 +505,7 @@ export default function TableClient({
               </Fragment>
             ))}
 
-            {/* ── Grand total row ─────────────────────────────────────────────── */}
+            {/* ── 11. GRAND TOTAL ───────────────────────────────────────────── */}
             <tr className="bg-gray-900 text-white">
               <td className="sticky left-0 z-10 bg-gray-900 px-4 py-3 text-white font-bold border-r border-gray-700 whitespace-nowrap">
                 Grand Total
@@ -474,9 +519,9 @@ export default function TableClient({
                 return (
                   <td
                     key={i}
-                    className={`px-3 py-3 text-right tabular-nums font-bold ${
-                      current ? "bg-blue-900" : ""
-                    } ${future && amt === 0 ? "text-gray-500" : "text-white"}`}
+                    className={`px-3 py-3 text-right tabular-nums font-bold ${current ? "bg-blue-900" : ""} ${
+                      future && amt === 0 ? "text-gray-500" : "text-white"
+                    }`}
                   >
                     {future && amt === 0 ? "—" : fmtDollars(amt)}
                   </td>
@@ -494,6 +539,116 @@ export default function TableClient({
                 }`}
               >
                 {fmtDollars(grandVariance)}
+              </td>
+            </tr>
+
+            {/* ── 12. NET POSITION ──────────────────────────────────────────── */}
+            <SectionHeaderRow label="Net Position" />
+
+            {/* Row 1: Net Surplus / (Deficit) */}
+            <tr className="bg-slate-700 text-white font-bold">
+              <td className="sticky left-0 z-10 bg-slate-700 px-4 py-3 text-white font-bold border-r border-slate-600 whitespace-nowrap">
+                Net Surplus / (Deficit)
+              </td>
+              {/* Budget — not applicable */}
+              <td className="px-3 py-3 text-right text-slate-400">—</td>
+              {/* Monthly net */}
+              {netMonthly.map((net, i) => {
+                const incomeAmt = incomeSection?.sectionMonthly[i] ?? 0;
+                const expenseAmt = grandMonthly[i];
+                const blank = isFutureMonth(i) && incomeAmt === 0 && expenseAmt === 0;
+                const current = isCurrentMonthCol(i);
+                if (blank) {
+                  return (
+                    <td key={i} className={`px-3 py-3 text-right font-bold text-slate-400 ${current ? "bg-slate-600" : ""}`}>
+                      —
+                    </td>
+                  );
+                }
+                return (
+                  <td
+                    key={i}
+                    className={`px-3 py-3 text-right tabular-nums font-bold ${current ? "bg-slate-600" : ""} ${
+                      net >= 0 ? "text-green-300" : "text-red-300"
+                    }`}
+                  >
+                    {fmtAccounting(net)}
+                  </td>
+                );
+              })}
+              {/* Annual Total */}
+              <td
+                className={`px-3 py-3 text-right tabular-nums font-bold border-l border-slate-600 ${
+                  annualNet >= 0 ? "text-green-300" : "text-red-300"
+                }`}
+              >
+                {fmtAccounting(annualNet)}
+              </td>
+              {/* Annual Budget — not applicable */}
+              <td className="px-3 py-3 text-right text-slate-400">—</td>
+              {/* Variance column = annual net (surplus/deficit for the year) */}
+              <td
+                className={`px-3 py-3 text-right tabular-nums font-bold ${
+                  annualNet >= 0 ? "text-green-300" : "text-red-300"
+                }`}
+              >
+                {fmtAccounting(annualNet)}
+              </td>
+            </tr>
+
+            {/* Row 2: Savings Rate */}
+            <tr className="bg-slate-700 text-white font-bold border-t border-slate-600">
+              <td className="sticky left-0 z-10 bg-slate-700 px-4 py-3 text-white font-bold border-r border-slate-600 whitespace-nowrap">
+                Savings Rate
+              </td>
+              {/* Budget — not applicable */}
+              <td className="px-3 py-3 text-right text-slate-400">—</td>
+              {/* Monthly savings rate */}
+              {savingsRateMonthly.map((rate, i) => {
+                const current = isCurrentMonthCol(i);
+                if (rate === null) {
+                  return (
+                    <td key={i} className={`px-3 py-3 text-right font-bold text-slate-400 ${current ? "bg-slate-600" : ""}`}>
+                      —
+                    </td>
+                  );
+                }
+                return (
+                  <td
+                    key={i}
+                    className={`px-3 py-3 text-right tabular-nums font-bold ${current ? "bg-slate-600" : ""} ${
+                      rate >= 0 ? "text-green-300" : "text-red-300"
+                    }`}
+                  >
+                    {fmtPct(rate)}
+                  </td>
+                );
+              })}
+              {/* Annual savings rate */}
+              <td
+                className={`px-3 py-3 text-right tabular-nums font-bold border-l border-slate-600 ${
+                  annualSavingsRate === null
+                    ? "text-slate-400"
+                    : annualSavingsRate >= 0
+                    ? "text-green-300"
+                    : "text-red-300"
+                }`}
+              >
+                {annualSavingsRate === null ? "—" : fmtPct(annualSavingsRate)}
+              </td>
+              {/* Annual Budget — not applicable */}
+              <td className="px-3 py-3 text-right text-slate-400">—</td>
+              {/* Variance column — annual savings rate */}
+              <td
+                className={`px-3 py-3 text-right tabular-nums font-bold ${
+                  annualSavingsRate === null
+                    ? "text-slate-400"
+                    : annualSavingsRate >= 0
+                    ? "text-green-300"
+                    : "text-red-300"
+                }`}
+              >
+                {annualSavingsRate === null ? "—" : fmtPct(annualSavingsRate)}
               </td>
             </tr>
           </tbody>
