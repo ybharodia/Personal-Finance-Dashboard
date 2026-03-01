@@ -177,7 +177,9 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
     () =>
       transactions.filter((t) => {
         if (t.type !== "expense") return false;
-        const d = new Date(t.date);
+        // Parse as local midnight (appending T00:00:00) so that dates like
+        // "2026-02-01" are not shifted to the previous month in UTC-offset timezones.
+        const d = new Date(t.date + "T00:00:00");
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
       }),
     [transactions, currentMonth, currentYear]
@@ -188,7 +190,8 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
       transactions
         .filter((t) => {
           if (t.type !== "expense") return false;
-          const d = new Date(t.date);
+          // Same local-midnight fix to avoid UTC timezone drift.
+          const d = new Date(t.date + "T00:00:00");
           return (
             d.getMonth() === lastMonth &&
             d.getFullYear() === lastMonthYear &&
