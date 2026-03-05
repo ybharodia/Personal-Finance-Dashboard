@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
+import { toMerchantKey } from "@/lib/recurring";
 import { formatCurrency } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import type { DbTransaction, DbBudget } from "@/lib/database.types";
@@ -121,6 +122,17 @@ export default function TransactionModal({
         }
         return t;
       });
+
+      // Persist a merchant rule so future transactions from this merchant
+      // are automatically categorized (handles serial-number variants too).
+      if ((category !== tx.category || subcategory !== tx.subcategory) && subcategory) {
+        await supabase
+          .from("merchant_rules")
+          .upsert(
+            { merchant_key: toMerchantKey(tx.description), display_name: tx.description, category, subcategory },
+            { onConflict: "merchant_key" }
+          );
+      }
 
       onSave(updated);
     } catch (err: any) {

@@ -1,5 +1,5 @@
 import { supabase, createAdminClient } from "./supabase";
-import type { DbAccount, DbTransaction, DbBudget, DbRecurringOverride } from "./database.types";
+import type { DbAccount, DbTransaction, DbBudget, DbRecurringOverride, DbMerchantRule } from "./database.types";
 import type { CategoryMeta } from "./data";
 
 const TAG = "[db]";
@@ -85,6 +85,12 @@ export async function getBudgets(): Promise<DbBudget[]> {
     }
   }
   return Array.from(seen.values());
+}
+
+export async function getMerchantRules(): Promise<DbMerchantRule[]> {
+  const { data, error } = await supabase.from("merchant_rules").select("*");
+  if (error) return [];
+  return data ?? [];
 }
 
 export async function getRecurringOverrides(): Promise<DbRecurringOverride[]> {

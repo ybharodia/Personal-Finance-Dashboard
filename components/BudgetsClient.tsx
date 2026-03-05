@@ -16,8 +16,9 @@ import {
 import { formatCurrency, getCategoryMeta } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
+import { toMerchantKey } from "@/lib/recurring";
 import TransactionModal from "@/components/TransactionModal";
-import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
+import type { DbAccount, DbTransaction, DbBudget, DbMerchantRule } from "@/lib/database.types";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -876,6 +877,19 @@ function CategoryRow({
   );
 }
 
+// ── Merchant rule application ─────────────────────────────────────────────────
+
+function applyMerchantRules(txns: DbTransaction[], rules: DbMerchantRule[]): DbTransaction[] {
+  if (!rules.length) return txns;
+  const map = new Map(rules.map((r) => [r.merchant_key, r]));
+  return txns.map((t) => {
+    if (t.subcategory) return t; // already categorized — don't override
+    const rule = map.get(toMerchantKey(t.description));
+    if (!rule) return t;
+    return { ...t, category: rule.category, subcategory: rule.subcategory };
+  });
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
 type Props = {
@@ -883,6 +897,7 @@ type Props = {
   transactions: DbTransaction[];
   budgets: DbBudget[];
   categories: CategoryMeta[];
+  merchantRules: DbMerchantRule[];
   month?: number;
   year?: number;
 };
@@ -892,12 +907,14 @@ export default function BudgetsClient({
   transactions,
   budgets: initialBudgets,
   categories: initialCategories,
+  merchantRules: initialMerchantRules,
   month = 2,
   year = 2026,
 }: Props) {
   const router = useRouter();
   const [localBudgets, setLocalBudgets] = useState<DbBudget[]>(initialBudgets);
   const [localCategories, setLocalCategories] = useState<CategoryMeta[]>(initialCategories);
+  const [merchantRules, setMerchantRules] = useState<DbMerchantRule[]>(initialMerchantRules);
   const [editing, setEditing] = useState<EditingState | null>(null);
   const [showAddCategory, setShowAddCategory] = useState(false);
   const [deletingCatId, setDeletingCatId] = useState<string | null>(null);
@@ -909,7 +926,9 @@ export default function BudgetsClient({
   // Month navigation state
   const [selectedMonth, setSelectedMonth] = useState(month);
   const [selectedYear, setSelectedYear] = useState(year);
-  const [selectedTransactions, setSelectedTransactions] = useState<DbTransaction[]>(transactions);
+  const [selectedTransactions, setSelectedTransactions] = useState<DbTransaction[]>(
+    () => applyMerchantRules(transactions, initialMerchantRules)
+  );
   const [loadingMonth, setLoadingMonth] = useState(false);
 
   const now = new Date();
@@ -940,7 +959,7 @@ export default function BudgetsClient({
         .order("date", { ascending: false });
 
       if (!error && data) {
-        setSelectedTransactions(data);
+        setSelectedTransactions(applyMerchantRules(data, merchantRules));
         setSelectedMonth(newMonth);
         setSelectedYear(newYear);
       }
@@ -1026,9 +1045,12 @@ export default function BudgetsClient({
 
   const [editingTxn, setEditingTxn] = useState<DbTransaction | null>(null);
 
-  function handleTxnSave(updatedTxns: DbTransaction[]) {
+  async function handleTxnSave(updatedTxns: DbTransaction[]) {
     setSelectedTransactions(updatedTxns);
     setEditingTxn(null);
+    // Refresh merchant rules in case a new rule was just created
+    const { data: rules } = await supabase.from("merchant_rules").select("*");
+    if (rules) setMerchantRules(rules);
   }
 
   async function handleDeleteSubcategory(catId: string, subName: string, _budgetId: string | null) {

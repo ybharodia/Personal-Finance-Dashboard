@@ -152,6 +152,29 @@ export type Database = {
         };
         Relationships: [];
       };
+      merchant_rules: {
+        Row: {
+          merchant_key: string;
+          display_name: string;
+          category: string;
+          subcategory: string;
+          created_at: string;
+        };
+        Insert: {
+          merchant_key: string;
+          display_name: string;
+          category: string;
+          subcategory: string;
+          created_at?: string;
+        };
+        Update: {
+          merchant_key?: string;
+          display_name?: string;
+          category?: string;
+          subcategory?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -169,3 +192,4 @@ export type DbBudget            = Database["public"]["Tables"]["budgets"]["Row"]
 export type DbPlaidItem         = Database["public"]["Tables"]["plaid_items"]["Row"];
 export type DbBudgetCategory    = Database["public"]["Tables"]["budget_categories"]["Row"];
 export type DbRecurringOverride = Database["public"]["Tables"]["recurring_overrides"]["Row"];
+export type DbMerchantRule     = Database["public"]["Tables"]["merchant_rules"]["Row"];
