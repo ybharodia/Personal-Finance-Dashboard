@@ -4,7 +4,7 @@ import BottomNav from "@/components/BottomNav";
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     // safe-area-top: pushes content below Dynamic Island / notch on iOS PWA
-    <div className="flex h-full overflow-hidden bg-gray-50 safe-area-top">
+    <div className="flex h-full overflow-hidden bg-stone-50 safe-area-top">
       <Sidebar />
       {/*
        * flex-col: ensures page components fill 100% width (cross-axis stretch)

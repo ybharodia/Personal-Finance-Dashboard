@@ -63,32 +63,32 @@ export default function Sidebar() {
   }
 
   return (
-    <aside className="hidden md:flex w-52 shrink-0 bg-gray-950 text-white flex-col">
+    <aside className="hidden md:flex w-52 shrink-0 bg-stone-900 text-white flex-col">
       {/* Logo */}
-      <div className="px-5 py-5 border-b border-gray-800">
+      <div className="px-5 py-5 border-b border-stone-800">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-indigo-500 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-amber-600 flex items-center justify-center">
             <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
             </svg>
           </div>
-          <span className="text-sm font-semibold tracking-tight">FinanceOS</span>
+          <span className="text-sm font-semibold tracking-tight text-stone-100">FinanceOS</span>
         </div>
       </div>
 
       {/* Nav */}
       <nav className="flex-1 px-3 py-4 space-y-0.5">
-        <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-widest text-gray-500">Menu</p>
+        <p className="px-3 pb-2 text-xs font-semibold uppercase tracking-widest text-stone-500">Menu</p>
         {navItems.map(({ label, href, icon }) => {
           const active = pathname === href;
           return (
             <Link
               key={href}
               href={href}
-              className={`flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
+              className={`flex items-center gap-3 py-2.5 rounded-lg text-sm font-medium transition-colors ${
                 active
-                  ? "bg-indigo-600 text-white"
-                  : "text-gray-400 hover:bg-gray-800 hover:text-white"
+                  ? "bg-stone-800 text-amber-400 border-l-[3px] border-amber-400 pl-[9px] pr-3"
+                  : "text-stone-400 hover:bg-stone-800 hover:text-stone-100 px-3"
               }`}
             >
               {icon}
@@ -99,11 +99,11 @@ export default function Sidebar() {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-4 border-t border-gray-800 space-y-3">
-        <p className="text-xs text-gray-500">February 2026</p>
+      <div className="px-4 py-4 border-t border-stone-800 space-y-3">
+        <p className="text-xs text-stone-500">March 2026</p>
         <button
           onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
+          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-stone-400 hover:bg-stone-800 hover:text-stone-100 transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />

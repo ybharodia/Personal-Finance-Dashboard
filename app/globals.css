@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 body {
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'DM Sans', Arial, sans-serif;
 }
 
 /* iOS PWA safe area utilities — required for Dynamic Island / notch support */
