@@ -89,10 +89,13 @@ export async function getBudgets(): Promise<DbBudget[]> {
 }
 
 export async function getMerchantRules(): Promise<DbMerchantRule[]> {
+  // Use admin client for server-side reliability (same as getBudgets/getRecurringOverrides)
+  const db = createAdminClient();
+
   // Fetch explicit rules and ALL categorized transactions in parallel
   const [rulesRes, txnsRes] = await Promise.all([
-    supabase.from("merchant_rules").select("*"),
-    supabase
+    db.from("merchant_rules").select("*"),
+    db
       .from("transactions")
       .select("description, category, subcategory, date")
       .neq("subcategory", "")
