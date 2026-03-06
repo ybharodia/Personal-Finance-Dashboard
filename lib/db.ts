@@ -119,6 +119,14 @@ export async function getMerchantRules(): Promise<DbMerchantRule[]> {
     merged.set(rule.merchant_key, rule);
   }
 
+  console.log(
+    "[getMerchantRules] txns with subcategory:", txnsRes.data?.length ?? 0,
+    "| explicit rules:", rulesRes.data?.length ?? 0,
+    "| merged total:", merged.size
+  );
+  const sample = Array.from(merged.values()).slice(0, 5);
+  console.log("[getMerchantRules] first 5 keys:", sample.map((r) => `${r.merchant_key} → ${r.subcategory}`));
+
   return Array.from(merged.values());
 }
 
