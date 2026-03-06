@@ -12,7 +12,7 @@ export const supabase = createBrowserClient<Database>(supabaseUrl, supabaseAnonK
 /** Server-side admin client — only use in server components / scripts, never in "use client" files.
  *  Falls back to the anon key if SUPABASE_SERVICE_ROLE_KEY is not set (e.g. Vercel env not configured). */
 export function createAdminClient() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseAnonKey;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
   return createClient<Database>(supabaseUrl, key, {
     auth: { persistSession: false },
   });
