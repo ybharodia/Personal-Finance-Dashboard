@@ -42,6 +42,21 @@ export function toMerchantKey(description: string): string {
   return normalizeMerchant(description);
 }
 
+/**
+ * Merchant key for subcategory rule matching.
+ * More aggressive than toMerchantKey: strips #XXXX serial patterns and 4+ digit
+ * standalone numbers so "Amazon #1234" and "Amazon #5678" both map to "amazon".
+ */
+export function merchantRuleKey(description: string): string {
+  return description
+    .toLowerCase()
+    .replace(/#[\w-]*/g, "")       // strip "#1234", "#A2B3C", etc.
+    .replace(/\b\d{4,}\b/g, "")   // strip 4+ digit standalone numbers (e.g. 883920)
+    .replace(/[^a-z0-9\s]/g, " ") // clean remaining special chars
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 // Fuzzy prefix key: first 8 chars of normalized name.
 // This groups "DUKE ENERGY" and "DUKE ENERGY PMT" under the same key.
 function merchantPrefixKey(normalized: string): string {

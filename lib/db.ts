@@ -1,6 +1,7 @@
 import { supabase, createAdminClient } from "./supabase";
 import type { DbAccount, DbTransaction, DbBudget, DbRecurringOverride, DbMerchantRule } from "./database.types";
 import type { CategoryMeta } from "./data";
+import { merchantRuleKey } from "./recurring";
 
 const TAG = "[db]";
 
@@ -88,9 +89,37 @@ export async function getBudgets(): Promise<DbBudget[]> {
 }
 
 export async function getMerchantRules(): Promise<DbMerchantRule[]> {
-  const { data, error } = await supabase.from("merchant_rules").select("*");
-  if (error) return [];
-  return data ?? [];
+  // Fetch explicit rules and ALL categorized transactions in parallel
+  const [rulesRes, txnsRes] = await Promise.all([
+    supabase.from("merchant_rules").select("*"),
+    supabase
+      .from("transactions")
+      .select("description, category, subcategory, date")
+      .neq("subcategory", "")
+      .order("date", { ascending: false }), // most recent first → wins on conflict
+  ]);
+
+  // Build lookup from transaction history (first entry = most recent = wins per merchant)
+  const merged = new Map<string, DbMerchantRule>();
+  for (const t of txnsRes.data ?? []) {
+    if (!t.subcategory) continue;
+    const key = merchantRuleKey(t.description);
+    if (!key || merged.has(key)) continue; // skip blank keys; keep most recent only
+    merged.set(key, {
+      merchant_key: key,
+      display_name: t.description,
+      category: t.category,
+      subcategory: t.subcategory,
+      created_at: "",
+    });
+  }
+
+  // Explicit merchant_rules override transaction-derived rules
+  for (const rule of rulesRes.data ?? []) {
+    merged.set(rule.merchant_key, rule);
+  }
+
+  return Array.from(merged.values());
 }
 
 export async function getRecurringOverrides(): Promise<DbRecurringOverride[]> {

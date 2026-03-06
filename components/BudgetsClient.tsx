@@ -16,7 +16,7 @@ import {
 import { formatCurrency, getCategoryMeta } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
-import { toMerchantKey } from "@/lib/recurring";
+import { merchantRuleKey } from "@/lib/recurring";
 import TransactionModal from "@/components/TransactionModal";
 import type { DbAccount, DbTransaction, DbBudget, DbMerchantRule } from "@/lib/database.types";
 
@@ -884,7 +884,7 @@ function applyMerchantRules(txns: DbTransaction[], rules: DbMerchantRule[]): DbT
   const map = new Map(rules.map((r) => [r.merchant_key, r]));
   return txns.map((t) => {
     if (t.subcategory) return t; // already categorized — don't override
-    const rule = map.get(toMerchantKey(t.description));
+    const rule = map.get(merchantRuleKey(t.description));
     if (!rule) return t;
     return { ...t, category: rule.category, subcategory: rule.subcategory };
   });
@@ -1048,9 +1048,16 @@ export default function BudgetsClient({
   async function handleTxnSave(updatedTxns: DbTransaction[]) {
     setSelectedTransactions(updatedTxns);
     setEditingTxn(null);
-    // Refresh merchant rules in case a new rule was just created
+    // Merge newly saved explicit rules into current state (don't replace — that would wipe
+    // the implicit rules derived from transaction history on page load)
     const { data: rules } = await supabase.from("merchant_rules").select("*");
-    if (rules) setMerchantRules(rules);
+    if (rules) {
+      setMerchantRules((prev) => {
+        const map = new Map(prev.map((r) => [r.merchant_key, r]));
+        for (const r of rules) map.set(r.merchant_key, r); // explicit wins
+        return Array.from(map.values());
+      });
+    }
   }
 
   async function handleDeleteSubcategory(catId: string, subName: string, _budgetId: string | null) {

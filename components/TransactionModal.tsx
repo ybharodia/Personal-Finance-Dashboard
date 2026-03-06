@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
-import { toMerchantKey } from "@/lib/recurring";
+import { merchantRuleKey } from "@/lib/recurring";
 import { formatCurrency } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import type { DbTransaction, DbBudget } from "@/lib/database.types";
@@ -129,7 +129,7 @@ export default function TransactionModal({
         await supabase
           .from("merchant_rules")
           .upsert(
-            { merchant_key: toMerchantKey(tx.description), display_name: tx.description, category, subcategory },
+            { merchant_key: merchantRuleKey(tx.description), display_name: tx.description, category, subcategory },
             { onConflict: "merchant_key" }
           );
       }
