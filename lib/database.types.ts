@@ -41,6 +41,7 @@ export type Database = {
           subcategory: string;
           amount: number;
           type: "income" | "expense" | "transfer";
+          user_categorized: boolean;
         };
         Insert: {
           id: string;
@@ -51,6 +52,7 @@ export type Database = {
           subcategory: string;
           amount: number;
           type: "income" | "expense" | "transfer";
+          user_categorized?: boolean;
         };
         Update: {
           id?: string;
@@ -61,6 +63,7 @@ export type Database = {
           subcategory?: string;
           amount?: number;
           type?: "income" | "expense" | "transfer";
+          user_categorized?: boolean;
         };
         Relationships: [];
       };

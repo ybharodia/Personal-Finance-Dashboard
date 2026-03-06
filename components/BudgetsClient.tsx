@@ -883,18 +883,8 @@ function applyMerchantRules(txns: DbTransaction[], rules: DbMerchantRule[]): DbT
   if (!rules.length) return txns;
   const map = new Map(rules.map((r) => [r.merchant_key, r]));
   return txns.map((t) => {
+    if (t.user_categorized) return t; // user explicitly chose this category — never override
     const key = merchantRuleKey(t.description);
-    // Temporary diagnostic log for Costco
-    if (t.description.toLowerCase().includes("costco")) {
-      console.log("[applyMerchantRules] Costco txn:", {
-        desc: t.description,
-        key,
-        existingSubcategory: t.subcategory,
-        hasRule: map.has(key),
-        rule: map.get(key),
-      });
-    }
-    if (t.subcategory) return t; // already categorized — don't override
     const rule = map.get(key);
     if (!rule) return t;
     return { ...t, category: rule.category, subcategory: rule.subcategory };

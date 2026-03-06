@@ -64,6 +64,7 @@ export default function AddTransactionModal({ accounts, budgets, onClose, onAdd 
       type,
       category,
       subcategory: subcategory.trim() || category,
+      user_categorized: true,
     };
 
     try {

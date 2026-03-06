@@ -17,9 +17,10 @@ CREATE TABLE IF NOT EXISTS transactions (
   account_id  TEXT        NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
   description TEXT        NOT NULL,
   category    TEXT        NOT NULL,
-  subcategory TEXT        NOT NULL DEFAULT '',
-  amount      NUMERIC(12, 2) NOT NULL CHECK (amount >= 0),
-  type        TEXT        NOT NULL CHECK (type IN ('income', 'expense'))
+  subcategory      TEXT        NOT NULL DEFAULT '',
+  amount           NUMERIC(12, 2) NOT NULL CHECK (amount >= 0),
+  type             TEXT        NOT NULL CHECK (type IN ('income', 'expense')),
+  user_categorized BOOLEAN     NOT NULL DEFAULT false
 );
 
 CREATE INDEX IF NOT EXISTS transactions_date_idx        ON transactions(date DESC);

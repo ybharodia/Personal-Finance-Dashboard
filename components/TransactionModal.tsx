@@ -99,7 +99,7 @@ export default function TransactionModal({
         // Update all transactions with the same original description to use new category/subcategory
         const { error: bulkErr } = await supabase
           .from("transactions")
-          .update({ category, subcategory })
+          .update({ category, subcategory, user_categorized: true })
           .eq("description", tx.description)
           .neq("id", tx.id);
         if (bulkErr) throw bulkErr;
@@ -108,17 +108,17 @@ export default function TransactionModal({
       // Always update the specific transaction with all changed fields
       const { error: singleErr } = await supabase
         .from("transactions")
-        .update({ date, description, amount: parsedAmount, type, category, subcategory })
+        .update({ date, description, amount: parsedAmount, type, category, subcategory, user_categorized: true })
         .eq("id", tx.id);
       if (singleErr) throw singleErr;
 
       // Build updated local list
       const updated = allTransactions.map((t) => {
         if (t.id === tx.id) {
-          return { ...t, date, description, amount: parsedAmount, type, category, subcategory };
+          return { ...t, date, description, amount: parsedAmount, type, category, subcategory, user_categorized: true };
         }
         if (applyToAll && t.description === tx.description) {
-          return { ...t, category, subcategory };
+          return { ...t, category, subcategory, user_categorized: true };
         }
         return t;
       });

@@ -98,7 +98,7 @@ export async function getMerchantRules(): Promise<DbMerchantRule[]> {
     db
       .from("transactions")
       .select("description, category, subcategory, date")
-      .neq("subcategory", "")
+      .eq("user_categorized", true)
       .order("date", { ascending: false }), // most recent first → wins on conflict
   ]);
 
