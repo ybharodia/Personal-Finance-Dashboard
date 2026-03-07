@@ -880,13 +880,13 @@ function CategoryRow({
 // ── Merchant rule application ─────────────────────────────────────────────────
 
 function applyMerchantRules(txns: DbTransaction[], rules: DbMerchantRule[]): DbTransaction[] {
-  if (!rules.length) return txns;
   const map = new Map(rules.map((r) => [r.merchant_key, r]));
   return txns.map((t) => {
     if (t.user_categorized) return t; // user explicitly chose this category — never override
     const key = merchantRuleKey(t.description);
     const rule = map.get(key);
-    if (!rule) return t;
+    // No rule → treat as uncategorized regardless of what Plaid sent
+    if (!rule) return { ...t, category: "", subcategory: "" };
     return { ...t, category: rule.category, subcategory: rule.subcategory };
   });
 }

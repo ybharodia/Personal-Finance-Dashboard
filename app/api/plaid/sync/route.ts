@@ -187,17 +187,33 @@ export async function POST() {
         console.error(`[plaid] failed to update cursor for ${item.item_id}: ${cursorErr.message}`);
       }
 
-      // Upsert added + modified transactions
-      const toUpsert = [...added, ...modified].map(mapTransaction);
-      if (toUpsert.length > 0) {
-        const { error: upsertErr } = await db
+      // Insert brand-new transactions with Plaid's category as a starting point.
+      // applyMerchantRules() will override them client-side; user saves set user_categorized=true.
+      if (added.length > 0) {
+        const toInsert = added.map(mapTransaction);
+        const { error: insertErr } = await db
           .from("transactions")
-          .upsert(toUpsert, { onConflict: "id" });
-        if (upsertErr) {
-          console.error(`[plaid] upsert transactions for ${item.item_id}: ${upsertErr.message}`);
-          itemErrors.push(`${item.item_id} upsert: ${upsertErr.message}`);
+          .upsert(toInsert, { onConflict: "id", ignoreDuplicates: true });
+        if (insertErr) {
+          console.error(`[plaid] insert added txns for ${item.item_id}: ${insertErr.message}`);
+          itemErrors.push(`${item.item_id} insert: ${insertErr.message}`);
         } else {
-          totalSynced += toUpsert.length;
+          totalSynced += added.length;
+        }
+      }
+
+      // Update modified transactions — only non-category fields so we never
+      // overwrite a user's saved category or user_categorized flag.
+      for (const t of modified) {
+        const m = mapTransaction(t);
+        const { error: modErr } = await db
+          .from("transactions")
+          .update({ date: m.date, description: m.description, amount: m.amount, type: m.type, account_id: m.account_id })
+          .eq("id", m.id);
+        if (modErr) {
+          console.error(`[plaid] update modified txn ${m.id}: ${modErr.message}`);
+        } else {
+          totalSynced += 1;
         }
       }
 

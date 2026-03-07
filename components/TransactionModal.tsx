@@ -84,7 +84,9 @@ export default function TransactionModal({
       });
   }, [budgets, category]);
 
-  async function doSave(applyToAll: boolean) {
+  // saveAsRule=true  → mark user_categorized + upsert merchant rule (applies to all future txns)
+  // saveAsRule=false → mark user_categorized on this transaction only, no merchant rule created
+  async function doSave(saveAsRule: boolean) {
     setSaving(true);
     setError(null);
     const parsedAmount = parseFloat(amount);
@@ -95,37 +97,24 @@ export default function TransactionModal({
     }
 
     try {
-      if (applyToAll) {
-        // Update all transactions with the same original description to use new category/subcategory
-        const { error: bulkErr } = await supabase
-          .from("transactions")
-          .update({ category, subcategory, user_categorized: true })
-          .eq("description", tx.description)
-          .neq("id", tx.id);
-        if (bulkErr) throw bulkErr;
-      }
-
-      // Always update the specific transaction with all changed fields
+      // Always update this specific transaction with all changed fields
       const { error: singleErr } = await supabase
         .from("transactions")
         .update({ date, description, amount: parsedAmount, type, category, subcategory, user_categorized: true })
         .eq("id", tx.id);
       if (singleErr) throw singleErr;
 
-      // Build updated local list
+      // Build updated local list — only this transaction changes
       const updated = allTransactions.map((t) => {
         if (t.id === tx.id) {
           return { ...t, date, description, amount: parsedAmount, type, category, subcategory, user_categorized: true };
         }
-        if (applyToAll && t.description === tx.description) {
-          return { ...t, category, subcategory, user_categorized: true };
-        }
         return t;
       });
 
-      // Persist a merchant rule so future transactions from this merchant
-      // are automatically categorized (handles serial-number variants too).
-      if ((category !== tx.category || subcategory !== tx.subcategory) && subcategory) {
+      // YES path: persist a merchant rule so all future transactions from this
+      // merchant are automatically categorized on load via applyMerchantRules().
+      if (saveAsRule && subcategory) {
         await supabase
           .from("merchant_rules")
           .upsert(
@@ -146,6 +135,7 @@ export default function TransactionModal({
     if (categoryChanged) {
       setShowConfirm(true);
     } else {
+      // No category change — just save fields like date/amount, no rule prompt needed
       doSave(false);
     }
   }
@@ -280,12 +270,12 @@ export default function TransactionModal({
             <p className="text-xs text-red-500">{error}</p>
           )}
 
-          {/* Recategorization confirmation */}
+          {/* Merchant rule prompt — shown when the user changes the category */}
           {showConfirm && (
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
               <p className="text-sm text-gray-700">
-                Apply this category to{" "}
-                <strong>all transactions from "{tx.description}"</strong>?
+                Save <strong>{subcategory || category}</strong> as the default category for all future{" "}
+                <strong>"{tx.description}"</strong> transactions?
               </p>
               <div className="flex gap-2">
                 <button
@@ -293,7 +283,7 @@ export default function TransactionModal({
                   disabled={saving}
                   className="flex-1 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
                 >
-                  Yes, apply to all
+                  Yes, save as rule
                 </button>
                 <button
                   onClick={() => { setShowConfirm(false); doSave(false); }}
