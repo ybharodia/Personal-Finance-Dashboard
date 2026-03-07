@@ -4,8 +4,11 @@ import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import AccountsPanel from "@/components/AccountsPanel";
 import DateRangeFilter, { type DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import TransactionModal from "@/components/TransactionModal";
 import { BUDGET_CATEGORIES, getCategoryMeta, formatCurrency } from "@/lib/data";
-import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
+import type { CategoryMeta } from "@/lib/data";
+import type { DbAccount, DbTransaction, DbBudget, DbMerchantRule } from "@/lib/database.types";
+import { merchantRuleKey } from "@/lib/recurring";
 import {
   PieChart,
   Pie,
@@ -89,15 +92,37 @@ type Props = {
   accounts: DbAccount[];
   transactions: DbTransaction[];
   budgets: DbBudget[];
+  categories: CategoryMeta[];
+  merchantRules: DbMerchantRule[];
 };
 
-export default function DashboardClient({ accounts, transactions, budgets }: Props) {
+function applyMerchantRules(txns: DbTransaction[], rules: DbMerchantRule[]): DbTransaction[] {
+  const map = new Map(rules.map((r) => [r.merchant_key, r]));
+  return txns.map((t) => {
+    if (t.user_categorized) return t;
+    const key = merchantRuleKey(t.description);
+    const rule = map.get(key);
+    if (!rule) return { ...t, category: "", subcategory: "" };
+    return { ...t, category: rule.category, subcategory: rule.subcategory };
+  });
+}
+
+export default function DashboardClient({ accounts, transactions, budgets, categories, merchantRules: initialMerchantRules }: Props) {
   const router = useRouter();
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("expense");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
+  const [localTxns, setLocalTxns] = useState<DbTransaction[]>(() =>
+    applyMerchantRules(transactions, initialMerchantRules)
+  );
+  const [editingTxn, setEditingTxn] = useState<DbTransaction | null>(null);
+
+  function handleTxnSave(updatedTxns: DbTransaction[]) {
+    setLocalTxns(updatedTxns);
+    setEditingTxn(null);
+  }
 
   const handleSync = async () => {
     setSyncStatus("syncing");
@@ -130,10 +155,10 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
     const fromStr = toIsoDate(dateRange.from);
     const toStr = toIsoDate(dateRange.to);
     let list = selectedAccount
-      ? transactions.filter((t) => t.account_id === selectedAccount)
-      : transactions;
+      ? localTxns.filter((t) => t.account_id === selectedAccount)
+      : localTxns;
     return list.filter((t) => t.date >= fromStr && t.date < toStr);
-  }, [selectedAccount, dateRange, transactions]);
+  }, [selectedAccount, dateRange, localTxns]);
 
   const totalIncome = useMemo(
     () => filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0),
@@ -152,7 +177,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
     }
     const byCategory: Record<string, number> = {};
     filtered
-      .filter((t) => t.type === "expense")
+      .filter((t) => t.type === "expense" && t.category)
       .forEach((t) => {
         byCategory[t.category] = (byCategory[t.category] || 0) + t.amount;
       });
@@ -175,17 +200,17 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
 
   const currentMonthTxns = useMemo(
     () =>
-      transactions.filter((t) => {
+      localTxns.filter((t) => {
         if (t.type !== "expense") return false;
         const d = new Date(t.date);
         return d.getMonth() === currentMonth && d.getFullYear() === currentYear;
       }),
-    [transactions, currentMonth, currentYear]
+    [localTxns, currentMonth, currentYear]
   );
 
   const lastMonthSamePointSpent = useMemo(
     () =>
-      transactions
+      localTxns
         .filter((t) => {
           if (t.type !== "expense") return false;
           const d = new Date(t.date);
@@ -196,7 +221,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
           );
         })
         .reduce((s, t) => s + t.amount, 0),
-    [transactions, lastMonth, lastMonthYear, dayOfMonth]
+    [localTxns, lastMonth, lastMonthYear, dayOfMonth]
   );
 
   const currentMonthSpent = currentMonthTxns.reduce((s, t) => s + t.amount, 0);
@@ -229,7 +254,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
       const m = d.getMonth();
       const label = d.toLocaleDateString("en-US", { month: "short" });
       const isCurrent = i === 0;
-      const total = transactions
+      const total = localTxns
         .filter((t) => {
           if (t.type !== "expense") return false;
           const td = new Date(t.date + "T00:00:00");
@@ -239,7 +264,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
       result.push({ label, total, isCurrent });
     }
     return result;
-  }, [transactions]);
+  }, [localTxns]);
 
   // ── Monthly income for the last 12 months (bar chart) ─────────────────────
   const monthlyIncome = useMemo(() => {
@@ -251,7 +276,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
       const m = d.getMonth();
       const label = d.toLocaleDateString("en-US", { month: "short" });
       const isCurrent = i === 0;
-      const total = transactions
+      const total = localTxns
         .filter((t) => {
           if (t.type !== "income") return false;
           const td = new Date(t.date + "T00:00:00");
@@ -261,7 +286,7 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
       result.push({ label, total, isCurrent });
     }
     return result;
-  }, [transactions]);
+  }, [localTxns]);
 
   return (
     <div className="flex h-full">
@@ -422,7 +447,11 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
                       const acct = accounts.find((a) => a.id === t.account_id);
                       const meta = getCategoryMeta(t.category);
                       return (
-                        <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                        <tr
+                          key={t.id}
+                          className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+                          onClick={() => setEditingTxn(t)}
+                        >
                           <td className="px-5 py-3 text-gray-500 whitespace-nowrap">{t.date}</td>
                           <td className="px-5 py-3 whitespace-nowrap">
                             <span className="text-xs text-gray-600">{acct?.bank_name}</span>
@@ -444,7 +473,10 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
                                 {meta.name}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400">{t.subcategory}</span>
+                              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400">
+                                <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                Uncategorized
+                              </span>
                             )}
                           </td>
                           <td className={`px-5 py-3 text-right font-semibold tabular-nums ${t.type === "expense" ? "text-red-500" : t.type === "income" ? "text-emerald-600" : "text-blue-500"}`}>
@@ -619,6 +651,18 @@ export default function DashboardClient({ accounts, transactions, budgets }: Pro
           </div>
         </div>
       </div>
+
+      {/* Edit Transaction modal */}
+      {editingTxn && (
+        <TransactionModal
+          tx={editingTxn}
+          budgets={budgets}
+          categories={categories}
+          allTransactions={localTxns}
+          onClose={() => setEditingTxn(null)}
+          onSave={handleTxnSave}
+        />
+      )}
     </div>
   );
 }

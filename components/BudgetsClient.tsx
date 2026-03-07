@@ -1047,18 +1047,19 @@ export default function BudgetsClient({
   const [editingTxn, setEditingTxn] = useState<DbTransaction | null>(null);
 
   async function handleTxnSave(updatedTxns: DbTransaction[]) {
-    setSelectedTransactions(updatedTxns);
     setEditingTxn(null);
-    // Merge newly saved explicit rules into current state (don't replace — that would wipe
-    // the implicit rules derived from transaction history on page load)
+    // Fetch latest explicit merchant_rules so any newly-saved rule takes effect immediately
     const { data: rules } = await supabase.from("merchant_rules").select("*");
-    if (rules) {
-      setMerchantRules((prev) => {
-        const map = new Map(prev.map((r) => [r.merchant_key, r]));
-        for (const r of rules) map.set(r.merchant_key, r); // explicit wins
-        return Array.from(map.values());
-      });
-    }
+    // Merge explicit rules into current state (explicit wins)
+    const newRules = (() => {
+      if (!rules) return merchantRules;
+      const map = new Map(merchantRules.map((r) => [r.merchant_key, r]));
+      for (const r of rules) map.set(r.merchant_key, r);
+      return Array.from(map.values());
+    })();
+    setMerchantRules(newRules);
+    // Re-apply rules so other uncategorized txns pick up any newly-created rule
+    setSelectedTransactions(applyMerchantRules(updatedTxns, newRules));
   }
 
   async function handleDeleteSubcategory(catId: string, subName: string, _budgetId: string | null) {
@@ -1139,6 +1140,12 @@ export default function BudgetsClient({
       };
     });
   }, [localBudgets, localCategories, selectedTransactions, deletedSubKeys]);
+
+  // Transactions with no category — shown in a dedicated Uncategorized section
+  const uncategorizedTxns = useMemo(
+    () => selectedTransactions.filter((t) => t.type !== "transfer" && !t.category),
+    [selectedTransactions]
+  );
 
   const spendingCategories = categoryViews.filter((c) => c.name !== "Income");
 
@@ -1324,6 +1331,50 @@ export default function BudgetsClient({
             </div>
           </div>
         </div>
+
+        {/* Uncategorized transactions */}
+        {uncategorizedTxns.length > 0 && (
+          <div className="space-y-3">
+            <h2 className="text-sm font-semibold text-gray-700">Uncategorized</h2>
+            <div className="bg-white rounded-xl border border-amber-200 shadow-sm overflow-hidden">
+              <div className="px-5 py-3 border-b border-amber-100 bg-amber-50 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-amber-400 shrink-0" />
+                <span className="text-sm font-semibold text-amber-800">Needs categorization</span>
+                <span className="ml-auto text-xs text-amber-600 font-medium">
+                  {uncategorizedTxns.length} transaction{uncategorizedTxns.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              <div className="divide-y divide-gray-50">
+                {uncategorizedTxns.map((t) => {
+                  const acct = accounts.find((a) => a.id === t.account_id);
+                  return (
+                    <button
+                      key={t.id}
+                      onClick={() => setEditingTxn(t)}
+                      className="w-full flex items-center gap-4 px-5 py-3 hover:bg-gray-50 transition-colors text-left"
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-gray-700 truncate">{t.description}</p>
+                        <p className="text-xs text-gray-400 mt-0.5">
+                          {t.date}{acct ? ` · ${acct.bank_name}` : ""}
+                        </p>
+                      </div>
+                      <span className={`text-sm font-semibold tabular-nums shrink-0 ${t.type === "income" ? "text-emerald-600" : "text-gray-800"}`}>
+                        {t.type === "income" ? "+" : "−"}{formatCurrency(t.amount)}
+                      </span>
+                      <span className="text-xs text-amber-500 font-medium shrink-0 flex items-center gap-1">
+                        Categorize
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                        </svg>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Category breakdown */}
         <div className="space-y-3">

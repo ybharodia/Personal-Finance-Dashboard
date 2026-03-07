@@ -1,4 +1,4 @@
-import { getAccounts, getTransactionsByDateRange, getBudgets } from "@/lib/db";
+import { getAccounts, getTransactionsByDateRange, getBudgets, getCategories, getMerchantRules } from "@/lib/db";
 import DashboardClient from "@/components/DashboardClient";
 
 export const dynamic = "force-dynamic";
@@ -13,10 +13,12 @@ export default async function DashboardPage() {
   const toStr = to.toISOString().slice(0, 10);
   const fromStr = from.toISOString().slice(0, 10);
 
-  const [accounts, transactions, budgets] = await Promise.all([
+  const [accounts, transactions, budgets, categories, merchantRules] = await Promise.all([
     getAccounts(),
     getTransactionsByDateRange(fromStr, toStr),
     getBudgets(),
+    getCategories(),
+    getMerchantRules(),
   ]);
 
   return (
@@ -24,6 +26,8 @@ export default async function DashboardPage() {
       accounts={accounts}
       transactions={transactions}
       budgets={budgets}
+      categories={categories}
+      merchantRules={merchantRules}
     />
   );
 }

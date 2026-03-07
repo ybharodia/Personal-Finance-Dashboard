@@ -173,7 +173,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
                           </td>
                           <td className="px-5 py-3 text-gray-700 max-w-xs">
                             <p className="truncate">{t.description}</p>
-                            <p className="text-gray-400 text-xs mt-0.5">{t.subcategory}</p>
+                            {t.subcategory && <p className="text-gray-400 text-xs mt-0.5">{t.subcategory}</p>}
                           </td>
                           <td className="px-5 py-3">
                             <button
@@ -195,8 +195,9 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
                                   {meta.name}
                                 </span>
                               ) : (
-                                <span className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
-                                  {t.type === "income" ? "Income" : t.category}
+                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
+                                  {t.type === "income" ? "Income" : t.category || "Uncategorized"}
                                 </span>
                               )}
                             </button>
