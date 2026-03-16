@@ -19,8 +19,8 @@ export const BUDGET_CATEGORIES: CategoryMeta[] = [
   { id: "savings", name: "Savings & Investments", color: "#84cc16" },
 ];
 
-export function getCategoryMeta(id: string): CategoryMeta | undefined {
-  return BUDGET_CATEGORIES.find((c) => c.id === id);
+export function getCategoryMeta(id: string, from?: CategoryMeta[]): CategoryMeta | undefined {
+  return (from ?? BUDGET_CATEGORIES).find((c) => c.id === id);
 }
 
 export function formatCurrency(amount: number) {

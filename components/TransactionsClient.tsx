@@ -46,7 +46,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
         (t) =>
           t.description.toLowerCase().includes(q) ||
           t.subcategory.toLowerCase().includes(q) ||
-          (getCategoryMeta(t.category)?.name ?? "").toLowerCase().includes(q) ||
+          (getCategoryMeta(t.category, categories)?.name ?? "").toLowerCase().includes(q) ||
           (accounts.find((a) => a.id === t.account_id)?.bank_name ?? "").toLowerCase().includes(q)
       );
     }
@@ -163,7 +163,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
                   ) : (
                     displayedTxns.map((t) => {
                       const acct = accounts.find((a) => a.id === t.account_id);
-                      const meta = getCategoryMeta(t.category);
+                      const meta = getCategoryMeta(t.category, categories);
                       return (
                         <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                           <td className="px-5 py-3 text-gray-500 whitespace-nowrap font-mono text-xs">{t.date}</td>

@@ -182,7 +182,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
         byCategory[t.category] = (byCategory[t.category] || 0) + t.amount;
       });
     return Object.entries(byCategory).map(([id, value]) => {
-      const meta = getCategoryMeta(id);
+      const meta = getCategoryMeta(id, categories);
       return { name: meta?.name ?? id, value, color: meta?.color ?? "#94a3b8" };
     });
   }, [filtered, viewMode, totalIncome]);
@@ -445,7 +445,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
                   ) : (
                     recent.map((t) => {
                       const acct = accounts.find((a) => a.id === t.account_id);
-                      const meta = getCategoryMeta(t.category);
+                      const meta = getCategoryMeta(t.category, categories);
                       return (
                         <tr
                           key={t.id}
