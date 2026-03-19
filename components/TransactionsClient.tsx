@@ -7,24 +7,28 @@ import TransactionModal from "@/components/TransactionModal";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import { getCategoryMeta, formatCurrency } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
-import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
+import type { DbAccount, DbTransaction, DbBudget, DbMerchantRule } from "@/lib/database.types";
+import { applyMerchantRules } from "@/lib/recurring";
 
 type Props = {
   accounts: DbAccount[];
   transactions: DbTransaction[];
   budgets: DbBudget[];
   categories: CategoryMeta[];
+  initialMerchantRules: DbMerchantRule[];
 };
 
 function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function TransactionsClient({ accounts, transactions, budgets, categories }: Props) {
+export default function TransactionsClient({ accounts, transactions, budgets, categories, initialMerchantRules }: Props) {
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
-  const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
+  const [localTxns, setLocalTxns] = useState<DbTransaction[]>(() =>
+    applyMerchantRules(transactions, initialMerchantRules)
+  );
   const [editingTx, setEditingTx] = useState<DbTransaction | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"income" | "expense" | "transfer" | null>(null);
