@@ -1,4 +1,4 @@
-import type { DbTransaction } from "./database.types";
+import type { DbTransaction, DbMerchantRule } from "./database.types";
 
 export type RecurringFrequency = "weekly" | "biweekly" | "monthly";
 
@@ -296,4 +296,51 @@ export function detectRecurringTransactions(
 
   // Sort by monthly amount descending (biggest recurring costs first)
   return results.sort((a, b) => b.monthlyAmount - a.monthlyAmount);
+}
+
+function meaningfulWords(key: string): Set<string> {
+  return new Set(key.split(/\s+/).filter((w) => w.length >= 4));
+}
+
+/**
+ * Apply saved merchant category rules to a list of transactions.
+ * Tries exact key match first; falls back to word-overlap for abbreviated names
+ * (e.g. "AMAZON MKTPLACE PMTS" matching a rule saved for "Amazon Marketplace").
+ * Never overrides a transaction the user explicitly categorized.
+ */
+export function applyMerchantRules(
+  txns: DbTransaction[],
+  rules: DbMerchantRule[]
+): DbTransaction[] {
+  const map = new Map(rules.map((r) => [r.merchant_key, r]));
+  // Pre-compute rule word sets once — avoids O(n×m) re-allocation per transaction
+  const ruleWords = new Map(rules.map((r) => [r.merchant_key, meaningfulWords(r.merchant_key)]));
+
+  return txns.map((t) => {
+    if (t.user_categorized) return t;
+    const key = merchantRuleKey(t.description);
+
+    // 1. Exact match (fast path — no behavior change for clean matches)
+    const exact = map.get(key);
+    if (exact) return { ...t, category: exact.category, subcategory: exact.subcategory };
+
+    // 2. Word-overlap fallback: find the rule with the most shared 4+ char words
+    const txWords = meaningfulWords(key);
+    let bestRule: DbMerchantRule | null = null;
+    let bestOverlap = 0;
+    let bestKeyLen = 0;
+    for (const rule of map.values()) {
+      let overlap = 0;
+      for (const w of ruleWords.get(rule.merchant_key)!) if (txWords.has(w)) overlap++;
+      if (overlap === 0) continue;
+      if (overlap > bestOverlap || (overlap === bestOverlap && rule.merchant_key.length > bestKeyLen)) {
+        bestRule = rule;
+        bestOverlap = overlap;
+        bestKeyLen = rule.merchant_key.length;
+      }
+    }
+
+    if (!bestRule) return { ...t, category: "", subcategory: "" };
+    return { ...t, category: bestRule.category, subcategory: bestRule.subcategory };
+  });
 }

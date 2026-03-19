@@ -16,7 +16,7 @@ import {
 import { formatCurrency, getCategoryMeta } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
-import { merchantRuleKey } from "@/lib/recurring";
+import { applyMerchantRules } from "@/lib/recurring";
 import TransactionModal from "@/components/TransactionModal";
 import type { DbAccount, DbTransaction, DbBudget, DbMerchantRule } from "@/lib/database.types";
 
@@ -877,19 +877,6 @@ function CategoryRow({
   );
 }
 
-// ── Merchant rule application ─────────────────────────────────────────────────
-
-function applyMerchantRules(txns: DbTransaction[], rules: DbMerchantRule[]): DbTransaction[] {
-  const map = new Map(rules.map((r) => [r.merchant_key, r]));
-  return txns.map((t) => {
-    if (t.user_categorized) return t; // user explicitly chose this category — never override
-    const key = merchantRuleKey(t.description);
-    const rule = map.get(key);
-    // No rule → treat as uncategorized regardless of what Plaid sent
-    if (!rule) return { ...t, category: "", subcategory: "" };
-    return { ...t, category: rule.category, subcategory: rule.subcategory };
-  });
-}
 
 // ── Main component ────────────────────────────────────────────────────────────
 
