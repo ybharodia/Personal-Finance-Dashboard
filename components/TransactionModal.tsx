@@ -3,9 +3,13 @@
 import { useState, useMemo } from "react";
 import { supabase } from "@/lib/supabase";
 import { merchantRuleKey } from "@/lib/recurring";
-import { formatCurrency } from "@/lib/data";
+import { applyRuleToDb } from "@/lib/merchantRuleUtils";
 import type { CategoryMeta } from "@/lib/data";
 import type { DbTransaction, DbBudget } from "@/lib/database.types";
+
+// "rule"       → standard "save as rule?" yes/no prompt
+// "updateRule" → existing rule found: "past+future / future only" prompt
+type ConfirmMode = "rule" | "updateRule" | null;
 
 type Props = {
   tx: DbTransaction;
@@ -41,9 +45,10 @@ export default function TransactionModal({
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [confirmMode, setConfirmMode] = useState<ConfirmMode>(null);
 
-  // Recategorization confirmation
-  const [showConfirm, setShowConfirm] = useState(false);
+  // Stable merchant key for this transaction — used for rule matching
+  const merchantKey = useMemo(() => merchantRuleKey(tx.description), [tx.description]);
 
   // Category changes are only meaningful for income/expense transactions
   const categoryChanged =
@@ -84,9 +89,10 @@ export default function TransactionModal({
       });
   }, [budgets, category]);
 
-  // saveAsRule=true  → mark user_categorized + upsert merchant rule (applies to all future txns)
+  // saveAsRule=true  → mark user_categorized + upsert merchant rule + bulk-update past matching txns
   // saveAsRule=false → mark user_categorized on this transaction only, no merchant rule created
-  async function doSave(saveAsRule: boolean) {
+  // applyToPast=true → (Scenario 2 update) also bulk-update past matching txns
+  async function doSave(saveAsRule: boolean, applyToPast = true) {
     setSaving(true);
     setError(null);
     const parsedAmount = parseFloat(amount);
@@ -104,23 +110,37 @@ export default function TransactionModal({
         .eq("id", tx.id);
       if (singleErr) throw singleErr;
 
-      // Build updated local list — only this transaction changes
-      const updated = allTransactions.map((t) => {
+      // Build updated local list — start with this transaction
+      let updated = allTransactions.map((t) => {
         if (t.id === tx.id) {
           return { ...t, date, description, amount: parsedAmount, type, category, subcategory, user_categorized: true };
         }
         return t;
       });
 
-      // YES path: persist a merchant rule so all future transactions from this
-      // merchant are automatically categorized on load via applyMerchantRules().
       if (saveAsRule && subcategory) {
+        // Upsert the merchant rule
         await supabase
           .from("merchant_rules")
           .upsert(
-            { merchant_key: merchantRuleKey(tx.description), display_name: tx.description, category, subcategory },
+            { merchant_key: merchantKey, display_name: tx.description, category, subcategory },
             { onConflict: "merchant_key" }
           );
+
+        if (applyToPast) {
+          // Scenario 1 & 2 (past+future): bulk-update all matching non-user-categorized transactions in DB
+          await applyRuleToDb(merchantKey, category, subcategory);
+
+          // Also update matching transactions in local state for immediate UI consistency
+          updated = updated.map((t) => {
+            if (t.id === tx.id) return t; // already updated above
+            if (!t.user_categorized && merchantRuleKey(t.description) === merchantKey) {
+              return { ...t, category, subcategory };
+            }
+            return t;
+          });
+        }
+        // Scenario 2 (future only): applyToPast=false → just the rule upsert above, no bulk update
       }
 
       onSave(updated);
@@ -131,12 +151,30 @@ export default function TransactionModal({
     }
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (categoryChanged) {
-      setShowConfirm(true);
+      setConfirmMode("rule");
     } else {
       // No category change — just save fields like date/amount, no rule prompt needed
       doSave(false);
+    }
+  }
+
+  // Called when user clicks "Yes, save as rule" — check if rule already exists
+  async function handleYesSaveAsRule() {
+    setConfirmMode(null);
+    const { data: existing } = await supabase
+      .from("merchant_rules")
+      .select("merchant_key")
+      .eq("merchant_key", merchantKey)
+      .maybeSingle();
+
+    if (existing) {
+      // Scenario 2: rule exists → ask about past transactions
+      setConfirmMode("updateRule");
+    } else {
+      // Scenario 1: new rule → apply to past + future
+      doSave(true, true);
     }
   }
 
@@ -270,8 +308,8 @@ export default function TransactionModal({
             <p className="text-xs text-red-500">{error}</p>
           )}
 
-          {/* Merchant rule prompt — shown when the user changes the category */}
-          {showConfirm && (
+          {/* Scenario 1: Standard "save as rule?" prompt */}
+          {confirmMode === "rule" && (
             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4 space-y-3">
               <p className="text-sm text-gray-700">
                 Save <strong>{subcategory || category}</strong> as the default category for all future{" "}
@@ -279,14 +317,14 @@ export default function TransactionModal({
               </p>
               <div className="flex gap-2">
                 <button
-                  onClick={() => { setShowConfirm(false); doSave(true); }}
+                  onClick={handleYesSaveAsRule}
                   disabled={saving}
                   className="flex-1 py-2 bg-indigo-600 text-white text-xs font-semibold rounded-lg hover:bg-indigo-700 transition-colors disabled:opacity-50"
                 >
                   Yes, save as rule
                 </button>
                 <button
-                  onClick={() => { setShowConfirm(false); doSave(false); }}
+                  onClick={() => { setConfirmMode(null); doSave(false); }}
                   disabled={saving}
                   className="flex-1 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
@@ -295,11 +333,37 @@ export default function TransactionModal({
               </div>
             </div>
           )}
+
+          {/* Scenario 2: Existing rule found — ask about past transactions */}
+          {confirmMode === "updateRule" && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+              <p className="text-sm text-gray-700">
+                A rule already exists for <strong>"{tx.description}"</strong>. Update it to{" "}
+                <strong>{subcategory || category}</strong>. Apply this change to past transactions too?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => { setConfirmMode(null); doSave(true, true); }}
+                  disabled={saving}
+                  className="flex-1 py-2 bg-amber-600 text-white text-xs font-semibold rounded-lg hover:bg-amber-700 transition-colors disabled:opacity-50"
+                >
+                  Past + future
+                </button>
+                <button
+                  onClick={() => { setConfirmMode(null); doSave(true, false); }}
+                  disabled={saving}
+                  className="flex-1 py-2 bg-white border border-gray-200 text-gray-700 text-xs font-semibold rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                  Future only
+                </button>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
         <div className="flex gap-3 px-6 py-4 border-t border-gray-100 shrink-0 bg-white">
-          {showConfirm ? (
+          {confirmMode ? (
             <p className="flex-1 text-xs text-gray-400 self-center">Select an option above to save.</p>
           ) : (
             <>

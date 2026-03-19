@@ -7,8 +7,7 @@ import DateRangeFilter, { type DateRange, getPresetRange } from "@/components/Da
 import TransactionModal from "@/components/TransactionModal";
 import { BUDGET_CATEGORIES, getCategoryMeta, formatCurrency } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
-import type { DbAccount, DbTransaction, DbBudget, DbMerchantRule } from "@/lib/database.types";
-import { applyMerchantRules } from "@/lib/recurring";
+import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
 import {
   PieChart,
   Pie,
@@ -93,19 +92,16 @@ type Props = {
   transactions: DbTransaction[];
   budgets: DbBudget[];
   categories: CategoryMeta[];
-  merchantRules: DbMerchantRule[];
 };
 
-export default function DashboardClient({ accounts, transactions, budgets, categories, merchantRules: initialMerchantRules }: Props) {
+export default function DashboardClient({ accounts, transactions, budgets, categories }: Props) {
   const router = useRouter();
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<ViewMode>("expense");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
-  const [localTxns, setLocalTxns] = useState<DbTransaction[]>(() =>
-    applyMerchantRules(transactions, initialMerchantRules)
-  );
+  const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
   const [editingTxn, setEditingTxn] = useState<DbTransaction | null>(null);
 
   function handleTxnSave(updatedTxns: DbTransaction[]) {
