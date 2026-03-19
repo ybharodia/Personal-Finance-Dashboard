@@ -2,7 +2,7 @@
 // and in the Vercel dashboard (Settings → Environment Variables) for production.
 
 import { NextRequest, NextResponse } from "next/server";
-import type { AdvisorBriefing } from "@/lib/advisor";
+import type { AdvisorBriefing, AdvisorMessage } from "@/lib/advisor";
 
 const SYSTEM_PROMPT = `You are a personal financial advisor embedded in FinanceOS. You have full access to this user's financial data for the past 6 months: transaction history, account balances, spending by category, income records, and budget targets.
 Persona: Direct, honest, and conversational — like a trusted friend who happens to know finance. You say what the numbers actually show, not what sounds polite.
@@ -14,18 +14,13 @@ Core directives:
 - Skip openers like "great question!" and get straight to the point
 Respond based on the actual data you have for this user. Lead with what the numbers show, then tell them what to do about it.`;
 
-interface ConversationMessage {
-  role: "user" | "assistant";
-  content: string;
-}
-
 export async function POST(req: NextRequest) {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return NextResponse.json({ error: "ANTHROPIC_API_KEY is not configured" }, { status: 500 });
   }
 
-  let messages: ConversationMessage[];
+  let messages: AdvisorMessage[];
   let briefing: AdvisorBriefing;
 
   try {
@@ -39,7 +34,7 @@ export async function POST(req: NextRequest) {
   }
 
   // Prepend briefing as the first user turn so the model always has fresh context
-  const messagesWithContext: ConversationMessage[] = [
+  const messagesWithContext: AdvisorMessage[] = [
     {
       role: "user",
       content: `Here is my current financial data: ${JSON.stringify(briefing)}`,

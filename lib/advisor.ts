@@ -48,6 +48,11 @@ export interface AdvisorBriefing {
   recentTransactions: RecentTransaction[];
 }
 
+export interface AdvisorMessage {
+  role: "user" | "assistant";
+  content: string;
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function toYYYYMM(date: Date): string {
