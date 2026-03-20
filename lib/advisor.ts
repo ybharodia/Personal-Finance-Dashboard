@@ -1,13 +1,6 @@
 import { getAccounts, getTransactionsByDateRange, getBudgets } from "./db";
 import type { DbAccount, DbTransaction, DbBudget } from "./database.types";
 
-const INCOME_CATEGORIES = new Set([
-  "CAHEC Salary",
-  "Consulting Income",
-  "EB5 Interest Income",
-  "Other Income",
-]);
-
 // ── Types ────────────────────────────────────────────────────────────────────
 
 export interface AccountSummary {
@@ -142,9 +135,9 @@ export async function buildAdvisorBriefing(): Promise<AdvisorBriefing> {
 
     for (const t of txns) {
       if (t.type === "transfer") continue;
-      if (INCOME_CATEGORIES.has(t.category)) {
+      if (t.type === "income") {
         totalIncome += t.amount;
-      } else {
+      } else if (t.type === "expense") {
         totalExpenses += t.amount;
         categorySpend.set(t.category, (categorySpend.get(t.category) ?? 0) + t.amount);
       }
