@@ -4,6 +4,7 @@ import { useMemo, Fragment } from "react";
 import { useRouter } from "next/navigation";
 import type { DbTransaction, DbBudget } from "@/lib/database.types";
 import type { CategoryMeta } from "@/lib/data";
+import { exportToExcel } from "@/lib/exportToExcel";
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -344,11 +345,41 @@ export default function TableClient({
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Page header */}
-      <div className="px-6 py-5 bg-white border-b border-gray-200 shrink-0">
-        <h1 className="text-xl font-semibold text-gray-900">Income Statement</h1>
-        <p className="text-sm text-gray-500 mt-0.5">
-          Monthly actuals vs budget · {selectedYear}
-        </p>
+      <div className="px-6 py-5 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between">
+        <div>
+          <h1 className="text-xl font-semibold text-gray-900">Income Statement</h1>
+          <p className="text-sm text-gray-500 mt-0.5">
+            Monthly actuals vs budget · {selectedYear}
+          </p>
+        </div>
+        <button
+          onClick={() => {
+            const rows: Record<string, unknown>[] = [];
+            if (incomeSection) {
+              for (const r of incomeSection.rows) {
+                const row: Record<string, unknown> = { Category: "Income", Subcategory: r.subName };
+                MONTHS_SHORT.forEach((m, i) => { row[m] = r.monthly[i] ?? 0; });
+                row["Annual Total"] = r.annualTotal;
+                rows.push(row);
+              }
+            }
+            for (const sec of sections) {
+              for (const sub of sec.subRows) {
+                const row: Record<string, unknown> = { Category: sec.name, Subcategory: sub.subName };
+                MONTHS_SHORT.forEach((m, i) => { row[m] = sub.monthly[i] ?? 0; });
+                row["Annual Total"] = sub.annualTotal;
+                rows.push(row);
+              }
+            }
+            exportToExcel(rows, "income-statement", "Income Statement");
+          }}
+          className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+        >
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          Download Excel
+        </button>
       </div>
 
       {/* Year selector */}

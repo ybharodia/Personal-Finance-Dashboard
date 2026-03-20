@@ -6,6 +6,7 @@ import DateRangeFilter, { type DateRange, getPresetRange } from "@/components/Da
 import TransactionModal from "@/components/TransactionModal";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import { getCategoryMeta, formatCurrency } from "@/lib/data";
+import { exportToExcel } from "@/lib/exportToExcel";
 import type { CategoryMeta } from "@/lib/data";
 import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
 
@@ -106,6 +107,25 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
                   </button>
                 ))}
               </div>
+              <button
+                onClick={() => {
+                  const rows = displayedTxns.map((t) => ({
+                    Date: t.date,
+                    Description: t.description,
+                    Category: getCategoryMeta(t.category, categories)?.name ?? t.category ?? "",
+                    Subcategory: t.subcategory ?? "",
+                    Amount: t.amount,
+                    Type: t.type,
+                  }));
+                  exportToExcel(rows, "transactions", "Transactions");
+                }}
+                className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+                </svg>
+                Download Excel
+              </button>
               <button
                 onClick={() => setShowAddModal(true)}
                 className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors"

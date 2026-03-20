@@ -16,6 +16,7 @@ import {
 import { formatCurrency, getCategoryMeta } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import { supabase } from "@/lib/supabase";
+import { exportToExcel } from "@/lib/exportToExcel";
 import TransactionModal from "@/components/TransactionModal";
 import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
 
@@ -1213,15 +1214,37 @@ export default function BudgetsClient({
               </button>
             </div>
           </div>
-          <button
-            onClick={() => setShowAddCategory(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add Category
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => {
+                const rows = categoryViews.flatMap((cat) =>
+                  cat.subcategories.map((sub) => ({
+                    Category: cat.name,
+                    Subcategory: sub.name,
+                    "Budgeted Amount": sub.budgeted,
+                    Spent: sub.spent,
+                    Remaining: sub.budgeted - sub.spent,
+                  }))
+                );
+                exportToExcel(rows, "budgets", "Budgets");
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              Download Excel
+            </button>
+            <button
+              onClick={() => setShowAddCategory(true)}
+              className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+              Add Category
+            </button>
+          </div>
         </div>
 
         {/* Summary cards */}
