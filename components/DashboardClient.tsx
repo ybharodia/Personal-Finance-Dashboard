@@ -8,6 +8,7 @@ import TransactionModal from "@/components/TransactionModal";
 import { BUDGET_CATEGORIES, getCategoryMeta, formatCurrency } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
+import DownloadBalancesButton from "@/components/DownloadBalancesButton";
 import {
   PieChart,
   Pie,
@@ -285,7 +286,9 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
               <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
               <p className="text-sm text-gray-400 mt-0.5">{formatRangeLabel(dateRange)}</p>
             </div>
-            <div className="flex flex-col items-end gap-1 mt-0.5">
+            <div className="flex items-center gap-2 mt-0.5">
+              <DownloadBalancesButton accounts={accounts} />
+              <div className="flex flex-col items-end gap-1">
               <button
                 onClick={handleSync}
                 disabled={syncStatus === "syncing"}
@@ -326,6 +329,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
               {syncStatus === "error" && syncError && (
                 <p className="text-xs text-red-500 max-w-[160px] text-right">{syncError}</p>
               )}
+              </div>
             </div>
           </div>
 
