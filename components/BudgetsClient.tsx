@@ -1218,13 +1218,15 @@ export default function BudgetsClient({
             <button
               onClick={() => {
                 const rows = categoryViews.flatMap((cat) =>
-                  cat.subcategories.map((sub) => ({
-                    Category: cat.name,
-                    Subcategory: sub.name,
-                    "Budgeted Amount": sub.budgeted,
-                    Spent: sub.spent,
-                    Remaining: sub.budgeted - sub.spent,
-                  }))
+                  cat.subcategories.flatMap((sub) =>
+                    sub.transactions.map((t) => ({
+                      Category: cat.name,
+                      Subcategory: sub.name,
+                      Date: t.date,
+                      Description: t.description,
+                      Amount: t.amount,
+                    }))
+                  )
                 );
                 exportToExcel(rows, "budgets", "Budgets");
               }}
