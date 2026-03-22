@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import AccountsPanel from "@/components/AccountsPanel";
 import DateRangeFilter, { type DateRange, getPresetRange } from "@/components/DateRangeFilter";
 import TransactionModal from "@/components/TransactionModal";
@@ -22,10 +23,14 @@ function toIsoDate(d: Date): string {
 }
 
 export default function TransactionsClient({ accounts, transactions, budgets, categories }: Props) {
+  const router = useRouter();
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
   const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
+
+  // Sync fresh server data into local state after router.refresh()
+  useEffect(() => { setLocalTxns(transactions); }, [transactions]);
   const [editingTx, setEditingTx] = useState<DbTransaction | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"income" | "expense" | "transfer" | null>(null);
@@ -65,6 +70,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
   function handleSaveEdit(updated: DbTransaction[]) {
     setLocalTxns(updated);
     setEditingTx(null);
+    router.refresh();
   }
 
   function handleAdd(newTx: DbTransaction) {
@@ -72,6 +78,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
     const next = [newTx, ...localTxns].sort((a, b) => b.date.localeCompare(a.date));
     setLocalTxns(next);
     setShowAddModal(false);
+    router.refresh();
   }
 
   return (

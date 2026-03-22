@@ -15,5 +15,9 @@ export function createAdminClient() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
   return createClient<Database>(supabaseUrl, key, {
     auth: { persistSession: false },
+    global: {
+      fetch: (url, options = {}) =>
+        fetch(url as string, { ...options, cache: "no-store" }),
+    },
   });
 }

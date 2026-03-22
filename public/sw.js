@@ -1,4 +1,4 @@
-const CACHE_NAME = "financeos-v1";
+const CACHE_NAME = "financeos-v2";
 
 // Static Next.js shell assets to precache on install
 const PRECACHE_PATHS = ["/"];
@@ -35,6 +35,14 @@ self.addEventListener("fetch", (event) => {
 
   // Never intercept Supabase or API calls — always go to network
   if (url.pathname.startsWith("/api/")) return;
+
+  // Next.js RSC / router data payloads: network-first, never cache
+  if (url.pathname.startsWith("/_next/data/")) {
+    event.respondWith(
+      fetch(request).catch(() => new Response("Offline", { status: 503 }))
+    );
+    return;
+  }
 
   // Next.js static chunks: cache-first (they're content-hashed, never stale)
   if (url.pathname.startsWith("/_next/static/")) {
