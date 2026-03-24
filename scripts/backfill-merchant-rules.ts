@@ -65,7 +65,7 @@ async function main() {
     // Skip if already correct
     if (t.category === rule.category && t.subcategory === rule.subcategory) continue;
     const entry = toUpdate.get(rule.merchant_key) ?? {
-      ids: [],
+      ids: [] as string[],
       category: rule.category,
       subcategory: rule.subcategory,
       display_name: rule.display_name,
