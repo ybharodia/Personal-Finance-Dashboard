@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
 import { createAdminClient } from "@/lib/supabase";
+import { merchantRuleKey } from "@/lib/recurring";
 import type { Transaction, RemovedTransaction, AccountType, AccountSubtype } from "plaid";
 
 // ── Category mapping ─────────────────────────────────────────────────────────
@@ -135,6 +136,11 @@ export async function POST() {
 
     console.log(`[plaid] starting sync for ${items.length} item(s)`);
 
+    // Fetch merchant rules once — constant across all items in this sync run.
+    const { data: merchantRules, error: rulesErr } = await db.from("merchant_rules").select("*");
+    if (rulesErr) console.error(`[plaid] failed to fetch merchant_rules: ${rulesErr.message}`);
+    const ruleMap = new Map((merchantRules ?? []).map((r) => [r.merchant_key, r]));
+
     let totalSynced = 0;
     const itemErrors: string[] = [];
 
@@ -187,8 +193,8 @@ export async function POST() {
         console.error(`[plaid] failed to update cursor for ${item.item_id}: ${cursorErr.message}`);
       }
 
-      // Insert brand-new transactions with Plaid's category as a starting point.
-      // applyMerchantRules() will override them client-side; user saves set user_categorized=true.
+      // Insert brand-new transactions with Plaid's category as a starting point,
+      // then immediately apply any saved merchant rules so categorization is correct.
       if (added.length > 0) {
         const toInsert = added.map(mapTransaction);
         const { error: insertErr } = await db
@@ -199,6 +205,25 @@ export async function POST() {
           itemErrors.push(`${item.item_id} insert: ${insertErr.message}`);
         } else {
           totalSynced += added.length;
+
+          // Apply saved merchant rules to newly inserted transactions so rules
+          // take effect immediately rather than waiting for client-side overlay.
+          if (ruleMap.size > 0) {
+            // Group inserted transaction IDs by the rule they match (one DB call per rule)
+            const ruleUpdates = new Map<string, { ids: string[]; category: string; subcategory: string }>();
+            for (const t of toInsert) {
+              const rule = ruleMap.get(merchantRuleKey(t.description));
+              if (!rule) continue;
+              const entry = ruleUpdates.get(rule.merchant_key) ?? { ids: [], category: rule.category, subcategory: rule.subcategory };
+              entry.ids.push(t.id);
+              ruleUpdates.set(rule.merchant_key, entry);
+            }
+            await Promise.all(
+              Array.from(ruleUpdates.values()).map(({ ids, category, subcategory }) =>
+                db.from("transactions").update({ category, subcategory }).in("id", ids).eq("user_categorized", false)
+              )
+            );
+          }
         }
       }
 
