@@ -7,6 +7,8 @@ import type { CategoryMeta } from "@/lib/data";
 import { getCategoryMeta, formatCurrency, fmtDate } from "@/lib/data";
 import TransactionModal from "@/components/TransactionModal";
 
+const RECENT_LIMIT = 8;
+
 type Props = {
   transactions: DbTransaction[];
   budgets: DbBudget[];
@@ -22,7 +24,7 @@ export default function RecentTransactions({ transactions, budgets, categories }
       if (b.date !== a.date) return b.date < a.date ? -1 : 1;
       return b.id < a.id ? -1 : 1;
     })
-    .slice(0, 8);
+    .slice(0, RECENT_LIMIT);
 
   return (
     <div className="bg-white border border-gray-200 rounded-xl p-4 h-full flex flex-col">
@@ -45,7 +47,10 @@ export default function RecentTransactions({ transactions, budgets, categories }
               return (
                 <li
                   key={t.id}
+                  role="button"
+                  tabIndex={0}
                   onClick={() => setEditing(t)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setEditing(t); } }}
                   className="flex items-center gap-2 py-2 cursor-pointer hover:bg-gray-50 rounded-lg px-1 -mx-1 transition-colors"
                 >
                   {/* Date */}
@@ -64,7 +69,7 @@ export default function RecentTransactions({ transactions, budgets, categories }
                       className="inline-block w-2 h-2 rounded-full shrink-0"
                       style={{ backgroundColor: meta?.color ?? "#d1d5db" }}
                     />
-                    <span className="truncate">{meta?.name ?? t.category}</span>
+                    <span className="truncate" title={meta?.name ?? t.category}>{meta?.name ?? t.category}</span>
                   </span>
 
                   {/* Amount */}
