@@ -99,7 +99,7 @@ export default function CashPositionChart() {
       {/* Chart area */}
       <div className="flex-1 min-h-0">
         {error ? (
-          <p className="text-xs text-red-400 mt-4">{error}</p>
+          <p className="text-xs text-red-500 mt-4">{error}</p>
         ) : !data ? (
           <div className="h-full bg-gray-100 animate-pulse rounded-lg" />
         ) : (
