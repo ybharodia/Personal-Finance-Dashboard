@@ -20,17 +20,28 @@ The 30-Day Forecast placeholder in Row 3 left remains as-is.
 
 **Purpose:** Reconstruct 60 days of total cash balance history and return it as a time series.
 
+**Liquid cash accounts:** `account_group IN ('checking', 'savings', 'business_checking', 'investment')`. Credit card accounts (`'credit'`, `'business_credit'`) are excluded — they represent liabilities, not liquid assets.
+
 **Algorithm:**
-1. Fetch all accounts where `account_group IN ('checking', 'savings', 'business_checking', 'investment')`.
-2. Sum their current `balance` values → today's total.
-3. Fetch all transactions dated within the last 60 days.
-4. Walk backwards from today: for each prior day, reverse that day's transactions (expenses add back, income subtracts) to estimate the prior-day balance.
-5. Fetch any existing rows from `daily_balances` table; stored rows override reconstructed values.
-6. Return `{ date: string, total_balance: number }[]` sorted oldest → newest, 60 data points.
+1. Fetch all liquid cash accounts (filter above). Sum their current `balance` → today's total.
+2. Fetch all transactions dated within the last 60 days.
+3. Walk backwards from today: for each prior day, reverse that day's transactions (expenses add back, income subtracts) to estimate the prior-day balance.
+4. Fetch any existing rows from `daily_balances` table; stored rows override reconstructed values.
+5. Return `{ date: string, total_balance: number }[]` sorted oldest → newest, 60 data points.
+
+**`daily_balances` table** (must be created before implementation):
+```sql
+CREATE TABLE IF NOT EXISTS daily_balances (
+  date        date PRIMARY KEY,
+  total_balance numeric NOT NULL,
+  updated_at  timestamptz NOT NULL DEFAULT now()
+);
+```
 
 **Response shape:**
 ```ts
 { data: Array<{ date: string; total_balance: number }> }
+// date is ISO format: "YYYY-MM-DD"
 ```
 
 **Error handling:** Return `{ error: string }` with appropriate HTTP status on failure. Log errors server-side.
@@ -66,7 +77,7 @@ The 30-Day Forecast placeholder in Row 3 left remains as-is.
 - SVG `linearGradient` from `#6366f1` (100% opacity) → `#6366f1` (0%) top-to-bottom
 - No `CartesianGrid`
 - No `YAxis`
-- `XAxis`: 5 evenly-spaced labels formatted as "Mon DD" (e.g. "Jan 15"), `tickLine={false}`, `axisLine={false}`, small gray text
+- `XAxis`: 5 evenly-spaced labels formatted as "MMM DD" (e.g. "Jan 15"), `tickLine={false}`, `axisLine={false}`, small gray text
 - Custom `Tooltip`: white card, date + formatted balance
 - Stroke: `#6366f1`, strokeWidth 2
 - Responsive via `ResponsiveContainer` at 100% width, fixed height ~160px
@@ -104,11 +115,11 @@ type Props = {
 ```
 
 - Date: short format "Jan 15"
-- Merchant: `t.merchant_name || t.description`, truncated with `truncate`
+- Merchant: `t.description`, truncated with `truncate`
 - Category pill: colored dot (using `getCategoryMeta(t.category, categories).color`) + category name; gray fallback for uncategorized
 - Amount: right-aligned, `tabular-nums`; expenses shown as negative in red (`-$XX.XX`), income in emerald
 
-**Interaction:** Clicking any row opens `TransactionModal` (full modal with all props). On modal `onSave`, update `localTxns` optimistically (replace the updated transaction in local state).
+**Interaction:** Clicking any row opens `TransactionModal` (full modal with all props). `TransactionModal.onSave` receives the full updated `DbTransaction[]` array — replace `localTxns` wholesale with this array.
 
 **Footer:** "View all →" right-aligned link (`<Link href="/transactions">`).
 
