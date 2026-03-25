@@ -10,6 +10,7 @@ import DownloadBalancesButton from "@/components/DownloadBalancesButton";
 import AccountsBox from "@/components/AccountsBox";
 import CashPositionChart from "@/components/CashPositionChart";
 import RecentTransactions from "@/components/RecentTransactions";
+import CashFlowForecast from "@/components/CashFlowForecast";
 
 type SyncStatus = "idle" | "syncing" | "success" | "error";
 
@@ -176,8 +177,8 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
 
         {/* Row 3 — 30-Day Forecast + Recent Transactions */}
         <div className="flex gap-4">
-          <div className="flex-1 min-h-[220px] bg-gray-100 rounded-xl flex items-center justify-center">
-            <span className="text-sm text-gray-400 font-medium">30-Day Forecast — coming soon</span>
+          <div className="flex-1 min-h-[220px]">
+            <CashFlowForecast />
           </div>
           <div className="flex-1 min-h-[220px]">
             <RecentTransactions
