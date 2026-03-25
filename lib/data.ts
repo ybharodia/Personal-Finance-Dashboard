@@ -23,6 +23,10 @@ export function getCategoryMeta(id: string, from?: CategoryMeta[]): CategoryMeta
   return (from ?? BUDGET_CATEGORIES).find((c) => c.id === id);
 }
 
+export function accountDisplayName(acct: { custom_name: string | null; name: string }): string {
+  return acct.custom_name?.trim() || acct.name;
+}
+
 export function formatCurrency(amount: number) {
   return new Intl.NumberFormat("en-US", {
     style: "currency",

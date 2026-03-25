@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { usePlaidLink } from "react-plaid-link";
 import { useRouter } from "next/navigation";
-import { formatCurrency } from "@/lib/data";
+import { formatCurrency, accountDisplayName } from "@/lib/data";
 import type { DbAccount } from "@/lib/database.types";
 
 // Banks that should appear first, in this order. Any Plaid-connected
@@ -28,10 +28,6 @@ function typeLabel(type: DbAccount["type"]) {
   return type === "credit" ? "Credit" : type === "savings" ? "Savings" : "Checking";
 }
 
-/** Returns the display name: custom_name if set, otherwise the original name. */
-function displayName(acct: DbAccount) {
-  return acct.custom_name?.trim() || acct.name;
-}
 
 // ── Plaid connect button (inner component keeps usePlaidLink unconditional) ──
 
@@ -306,7 +302,7 @@ export default function AccountsPanel({ accounts, selectedAccount, onSelect }: P
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1 min-w-0">
                               <p className={`text-sm font-medium truncate ${selectedAccount === acct.id ? "text-indigo-700" : "text-gray-700"}`}>
-                                {displayName(acct)}
+                                {accountDisplayName(acct)}
                               </p>
                               {/* Pencil icon — only visible on hover */}
                               <button

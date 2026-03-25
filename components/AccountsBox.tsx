@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import type { DbAccount } from "@/lib/database.types";
-import { formatCurrency } from "@/lib/data";
+import { formatCurrency, accountDisplayName } from "@/lib/data";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -17,9 +17,6 @@ function typeLabel(group: string | null): string {
   return "";
 }
 
-function displayName(a: DbAccount): string {
-  return a.custom_name?.trim() || a.name;
-}
 
 function ownerLabel(owner: string | null): string {
   if (owner === "yash") return "Yash";
@@ -66,7 +63,7 @@ function TagModal({ account, onClose, onSaved }: TagModalProps) {
   return (
     <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-sm mx-4 p-5">
-        <h2 className="text-sm font-semibold text-gray-900 mb-4">{displayName(account)}</h2>
+        <h2 className="text-sm font-semibold text-gray-900 mb-4">{accountDisplayName(account)}</h2>
 
         <div className="space-y-3">
           <div>
@@ -126,7 +123,6 @@ type Section = {
   key: string;
   label: string;
   accounts: DbAccount[];
-  isUntaggedSection?: boolean;
 };
 
 type Props = { accounts: DbAccount[] };
@@ -145,7 +141,6 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
       key: "untagged",
       label: "Untagged",
       accounts: localAccounts.filter(isUntagged),
-      isUntaggedSection: true,
     },
     {
       key: "yash",
@@ -182,7 +177,7 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
                 <span className="text-xs font-semibold uppercase tracking-wider text-gray-400">
                   {section.label}
                 </span>
-                {section.isUntaggedSection && (
+                {section.key === "untagged" && (
                   <p className="mt-1 text-xs text-amber-600 bg-amber-50 rounded px-2 py-1">
                     These accounts need to be tagged.
                   </p>
@@ -207,7 +202,7 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-1">
                         <span className="text-sm font-medium text-gray-800 truncate">
-                          {displayName(acct)}
+                          {accountDisplayName(acct)}
                         </span>
                         <button
                           onClick={() => setTagging(acct)}
