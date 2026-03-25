@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation";
 import type { RecurringTransaction, RecurringFrequency } from "@/lib/recurring";
 import { buildManualRecurring, toMerchantKey } from "@/lib/recurring";
 import { formatCurrency, getCategoryMeta } from "@/lib/data";
-import type { DbTransaction } from "@/lib/database.types";
+import type { DbTransaction, RecurringAccountType } from "@/lib/database.types";
+import ManageRecurringModal from "@/components/ManageRecurringModal";
 
 type Props = {
   recurring: RecurringTransaction[];
@@ -54,6 +55,8 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [addSearch, setAddSearch] = useState("");
   const [pendingKey, setPendingKey] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<RecurringAccountType>("checking_savings");
+  const [showManageModal, setShowManageModal] = useState(false);
 
   // ── Derived state ────────────────────────────────────────────────────────────
 
@@ -176,24 +179,54 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
     <div className="flex-1 min-h-0 overflow-y-auto bg-gray-950">
       <div className="max-w-5xl mx-auto px-4 py-6 md:px-6 md:py-8 pb-24 md:pb-8">
 
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-xl font-semibold text-white">Recurring Transactions</h1>
-            <p className="text-sm text-gray-400 mt-1">
-              Subscriptions and bills detected from your transaction history
-            </p>
-          </div>
-          <button
-            onClick={() => setShowAddModal(true)}
-            className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors shrink-0"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-            </svg>
-            Add
-          </button>
+        {/* Page header */}
+        <div className="mb-5">
+          <h1 className="text-xl font-semibold text-white">Recurring Transactions</h1>
+          <p className="text-sm text-gray-400 mt-1">
+            Subscriptions and bills detected from your transaction history
+          </p>
         </div>
+
+        {/* Account type tabs */}
+        <div className="flex items-center gap-1 mb-6 border-b border-gray-800">
+          {(["checking_savings", "credit_card"] as RecurringAccountType[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`px-4 py-2.5 text-sm font-medium transition-colors border-b-2 -mb-px ${
+                activeTab === tab
+                  ? "border-indigo-500 text-white"
+                  : "border-transparent text-gray-400 hover:text-gray-200"
+              }`}
+            >
+              {tab === "checking_savings" ? "Checking & Savings" : "Credit Cards"}
+            </button>
+          ))}
+        </div>
+
+        {/* Tab: Checking & Savings — existing content */}
+        {activeTab === "checking_savings" && (
+          <>
+            {/* Sub-header with Add + Manage buttons */}
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setShowAddModal(true)}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-medium transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+                  </svg>
+                  Add
+                </button>
+              </div>
+              <button
+                onClick={() => setShowManageModal(true)}
+                className="px-3 py-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 text-sm font-medium transition-colors"
+              >
+                Manage Recurring
+              </button>
+            </div>
 
         {/* Summary cards */}
         {list.length > 0 && (
@@ -346,7 +379,50 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
             })}
           </div>
         )}
+          </>
+        )}
+
+        {/* Tab: Credit Cards */}
+        {activeTab === "credit_card" && (
+          <>
+            <div className="flex items-center justify-end mb-6">
+              <button
+                onClick={() => setShowManageModal(true)}
+                className="px-3 py-2 rounded-lg border border-gray-700 text-gray-300 hover:text-white hover:border-gray-500 text-sm font-medium transition-colors"
+              >
+                Manage Recurring
+              </button>
+            </div>
+            <div className="text-center py-20">
+              <svg
+                className="w-12 h-12 mx-auto text-gray-700 mb-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
+                />
+              </svg>
+              <p className="text-gray-400 font-medium">Credit card recurring rules</p>
+              <p className="text-gray-600 text-sm mt-1">
+                Use &ldquo;Manage Recurring&rdquo; to configure recurring merchants for your credit cards
+              </p>
+            </div>
+          </>
+        )}
       </div>
+
+      {/* ── Manage Recurring Modal ────────────────────────────────────────────── */}
+      {showManageModal && (
+        <ManageRecurringModal
+          accountType={activeTab}
+          onClose={() => setShowManageModal(false)}
+        />
+      )}
 
       {/* ── Add Recurring Modal ───────────────────────────────────────────────── */}
       {showAddModal && (

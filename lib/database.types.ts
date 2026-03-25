@@ -202,6 +202,32 @@ export type Database = {
         };
         Relationships: [];
       };
+      recurring_rules: {
+        Row: {
+          id: number;
+          merchant_key: string;
+          account_type: "checking_savings" | "credit_card";
+          is_recurring: boolean;
+          frequency: "weekly" | "biweekly" | "monthly" | null;
+          transaction_type: "income" | "expense" | null;
+          created_at: string;
+        };
+        Insert: {
+          merchant_key: string;
+          account_type: "checking_savings" | "credit_card";
+          is_recurring?: boolean;
+          frequency?: "weekly" | "biweekly" | "monthly" | null;
+          transaction_type?: "income" | "expense" | null;
+        };
+        Update: {
+          merchant_key?: string;
+          account_type?: "checking_savings" | "credit_card";
+          is_recurring?: boolean;
+          frequency?: "weekly" | "biweekly" | "monthly" | null;
+          transaction_type?: "income" | "expense" | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -221,3 +247,5 @@ export type DbBudgetCategory    = Database["public"]["Tables"]["budget_categorie
 export type DbRecurringOverride = Database["public"]["Tables"]["recurring_overrides"]["Row"];
 export type DbMerchantRule     = Database["public"]["Tables"]["merchant_rules"]["Row"];
 export type DbDailyBalance      = Database["public"]["Tables"]["daily_balances"]["Row"];
+export type DbRecurringRule     = Database["public"]["Tables"]["recurring_rules"]["Row"];
+export type RecurringAccountType = "checking_savings" | "credit_card";
