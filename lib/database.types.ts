@@ -220,4 +220,4 @@ export type DbPlaidItem         = Database["public"]["Tables"]["plaid_items"]["R
 export type DbBudgetCategory    = Database["public"]["Tables"]["budget_categories"]["Row"];
 export type DbRecurringOverride = Database["public"]["Tables"]["recurring_overrides"]["Row"];
 export type DbMerchantRule     = Database["public"]["Tables"]["merchant_rules"]["Row"];
-export type DbDailyBalance    = Database["public"]["Tables"]["daily_balances"]["Row"];
+export type DbDailyBalance      = Database["public"]["Tables"]["daily_balances"]["Row"];
