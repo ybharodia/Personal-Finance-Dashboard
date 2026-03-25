@@ -16,6 +16,11 @@ function addDays(d: Date, days: number): Date {
   return r;
 }
 
+/** Returns the number of days in the given month (1-indexed month) */
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
 type RawTxn = { description: string; amount: number; date: string; type: string; category: string };
 type RecurringItem = {
   description: string;
@@ -48,12 +53,13 @@ function detectRecurring(txns: RawTxn[], threshold: number): RecurringItem[] {
     const max = Math.max(...amounts);
     if (min <= 0) continue;
     if (max / min > 1 + threshold) continue;
+    const firstType = entries[0].isIncome;
+    if (entries.some((e) => e.isIncome !== firstType)) continue;
 
     const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
     const avgDay = entries.reduce((a, e) => a + e.day, 0) / entries.length;
-    const isIncome = entries[0].isIncome;
 
-    result.push({ description, avgAmount, avgDayOfMonth: Math.round(avgDay), isIncome });
+    result.push({ description, avgAmount, avgDayOfMonth: Math.round(avgDay), isIncome: firstType });
   }
   return result;
 }
@@ -116,7 +122,8 @@ export async function GET() {
       for (const item of allRecurring) {
         const key = `${item.description}:${yearMonth}`;
         if (applied.has(key)) continue;
-        if (Math.abs(dayOfMonth - item.avgDayOfMonth) <= 1) {
+        const clampedDay = Math.min(item.avgDayOfMonth, daysInMonth(day.getFullYear(), day.getMonth() + 1));
+        if (Math.abs(dayOfMonth - clampedDay) <= 1) {
           runningBalance += item.isIncome ? item.avgAmount : -item.avgAmount;
           applied.add(key);
         }
@@ -130,8 +137,9 @@ export async function GET() {
       projected_balance: runningBalance,
       data,
     });
-  } catch (err: any) {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Unknown error";
     console.error("[forecast] unexpected error:", err);
-    return NextResponse.json({ error: err.message ?? "Unknown error" }, { status: 500 });
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
