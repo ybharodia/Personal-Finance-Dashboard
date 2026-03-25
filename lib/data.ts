@@ -34,3 +34,12 @@ export function formatCurrency(amount: number) {
     minimumFractionDigits: 2,
   }).format(amount);
 }
+
+/** Format "YYYY-MM-DD" → "Jan 15" */
+export function fmtDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+  });
+}
