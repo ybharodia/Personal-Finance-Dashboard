@@ -7,6 +7,7 @@ import { formatCurrency } from "@/lib/data";
 import type { CategoryMeta } from "@/lib/data";
 import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
 import DownloadBalancesButton from "@/components/DownloadBalancesButton";
+import AccountsBox from "@/components/AccountsBox";
 
 type SyncStatus = "idle" | "syncing" | "success" | "error";
 
@@ -166,8 +167,8 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
           <div className="flex-[3] min-h-[220px] bg-gray-100 rounded-xl flex items-center justify-center">
             <span className="text-sm text-gray-400 font-medium">Cash Position Chart — coming soon</span>
           </div>
-          <div className="flex-[2] min-h-[220px] bg-gray-100 rounded-xl flex items-center justify-center">
-            <span className="text-sm text-gray-400 font-medium">Accounts — coming soon</span>
+          <div className="flex-[2] min-w-0">
+            <AccountsBox accounts={accounts} />
           </div>
         </div>
 
