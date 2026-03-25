@@ -14,13 +14,13 @@ type Merchant = {
 type RecurringRule = {
   merchant_key: string;
   is_recurring: boolean;
-  frequency: "weekly" | "biweekly" | "monthly" | null;
+  frequency: "weekly" | "biweekly" | "monthly" | "quarterly" | "annually" | null;
   transaction_type: "income" | "expense" | null;
 };
 
 type RowState = {
   is_recurring: boolean;
-  frequency: "weekly" | "biweekly" | "monthly" | null;
+  frequency: "weekly" | "biweekly" | "monthly" | "quarterly" | "annually" | null;
   transaction_type: "income" | "expense" | null;
 };
 
@@ -225,6 +225,8 @@ export default function ManageRecurringModal({ accountType, onClose }: Props) {
                     <option value="weekly">Weekly</option>
                     <option value="biweekly">Biweekly</option>
                     <option value="monthly">Monthly</option>
+                    <option value="quarterly">Quarterly</option>
+                    <option value="annually">Annually</option>
                   </select>
 
                   {/* Type toggle — only for checking_savings */}

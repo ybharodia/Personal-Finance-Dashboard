@@ -101,15 +101,18 @@ export async function GET(request: Request) {
     const lastDate = sample[0]?.date ?? null;
 
     let nextDate: string | null = null;
-    if (lastDate && rule.frequency) {
-      if (rule.frequency === "monthly") nextDate = addMonths(lastDate, 1);
-      else if (rule.frequency === "biweekly") nextDate = addDays(lastDate, 14);
-      else if (rule.frequency === "weekly") nextDate = addDays(lastDate, 7);
+    const freq = rule.frequency as string | null;
+    if (lastDate && freq) {
+      if (freq === "monthly") nextDate = addMonths(lastDate, 1);
+      else if (freq === "quarterly") nextDate = addMonths(lastDate, 3);
+      else if (freq === "annually") nextDate = addMonths(lastDate, 12);
+      else if (freq === "biweekly") nextDate = addDays(lastDate, 14);
+      else if (freq === "weekly") nextDate = addDays(lastDate, 7);
     }
 
     return {
       merchant_key: rule.merchant_key,
-      frequency: rule.frequency as "weekly" | "biweekly" | "monthly" | null,
+      frequency: rule.frequency as "weekly" | "biweekly" | "monthly" | "quarterly" | "annually" | null,
       transaction_type: rule.transaction_type as "income" | "expense" | null,
       avg_amount: avgAmount,
       last_date: lastDate,
