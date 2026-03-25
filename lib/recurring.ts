@@ -17,25 +17,75 @@ export type RecurringTransaction = {
   subcategory: string | null;
 };
 
-// Regex patterns for Plaid-specific suffix stripping (hoisted for perf across 5k tx)
-const ID_SUFFIX_RE = /\s+(?:WEB|PPD)\s+ID:.*$/i;
-const TRAILING_CODE_RE = /\s+[A-Z0-9]{8,}$/i;
+// Patterns that indicate non-merchant transactions — return null to skip entirely
+const EXCLUDE_PATTERNS = [
+  /^Online Transfer/i,
+  /^Online ACH Payment/i,
+  /transaction#:/i,
+  /^ATM CASH DEPOSIT/i,
+  /^ATM TRANSACTION FEE/i,
+  /^NON-CHASE ATM/i,
+  /^REMOTE ONLINE DEPOSIT/i,
+  /^FEDWIRE CREDIT/i,
+] as const;
+
+// Hoisted for performance across 5k+ transactions per request
+const ORIG_CO_NAME_RE = /ORIG CO NAME:(.*?)\s+ORIG ID:/i;
+const ID_SUFFIX_RE = /\s+(?:(?:WEB|PPD|CCD)\s+ID:|WEB_PAY|ACH\s+WEB).*$/i;
+const LONG_DIGITS_RE = /\b\d{8,}\b/g;
 
 /**
  * Normalize a raw Plaid transaction description into a clean display merchant name.
- * Strips per-transaction codes so variants collapse to a single key:
- *   "AMAZON MKTPL*2T1CF3AC3"                              → "AMAZON MKTPL"
- *   "AMERICAN EXPRESS ACH PMT A2440 WEB ID: 9493560001"   → "AMERICAN EXPRESS ACH PMT"
- *   "CITYOFRALUTIL BILLPAY PPD ID: 0000000160"            → "CITYOFRALUTIL BILLPAY"
- *   "VW CREDIT INC AUTO DEBIT 00000815295745"             → "VW CREDIT INC AUTO DEBIT"
+ * Returns null if the description matches a known non-merchant pattern (transfers,
+ * ATM ops, etc.) or normalizes to an empty string.
+ *
+ * Processing order:
+ *   Step 0 — exclude non-merchant patterns → null
+ *   Step 1 — extract "ORIG CO NAME:…" company name
+ *   Step 2 — strip everything after first asterisk
+ *   Step 3 — strip WEB ID / PPD ID / CCD ID / WEB_PAY / ACH WEB suffixes
+ *   Step 4 — strip standalone 8+ digit sequences
+ *   Step 5 — strip trailing mixed alphanumeric codes (letter + digit, any length)
+ *   Step 6 — collapse whitespace, trim, return null if empty
  */
-export function normalizeMerchantName(description: string): string {
+export function normalizeMerchantName(description: string): string | null {
+  // Step 0: skip known non-merchant patterns
+  for (const re of EXCLUDE_PATTERNS) {
+    if (re.test(description)) return null;
+  }
+
   let name = description;
+
+  // Step 1: "ORIG CO NAME:CHASE CREDIT CRD ORIG ID:..." → "CHASE CREDIT CRD"
+  const origMatch = name.match(ORIG_CO_NAME_RE);
+  if (origMatch) name = origMatch[1].trim();
+
+  // Step 2: "AMAZON MKTPL*2T1CF3AC3" → "AMAZON MKTPL"
   const asteriskIdx = name.indexOf("*");
   if (asteriskIdx !== -1) name = name.slice(0, asteriskIdx);
+
+  // Step 3: strip WEB ID:, PPD ID:, CCD ID:, WEB_PAY, ACH WEB (but NOT ACH PMT)
   name = name.replace(ID_SUFFIX_RE, "");
-  name = name.replace(TRAILING_CODE_RE, "");
-  return name.trim();
+
+  // Step 4: strip standalone 8+ digit sequences (e.g. "3210143049503")
+  name = name.replace(LONG_DIGITS_RE, "");
+
+  // Step 5: strip trailing words that contain both a letter and a digit
+  // (mixed alphanumeric codes like "A2440", "NCA283489"); loop because removing
+  // one may expose another. Pure-alpha words like "DRAFT" or "Yash" are kept.
+  let prev: string;
+  do {
+    prev = name;
+    const lastSpace = name.lastIndexOf(" ");
+    const lastWord = lastSpace === -1 ? name : name.slice(lastSpace + 1);
+    if (/[A-Za-z]/.test(lastWord) && /[0-9]/.test(lastWord)) {
+      name = lastSpace === -1 ? "" : name.slice(0, lastSpace);
+    }
+  } while (name !== prev);
+
+  // Step 6: collapse whitespace and trim
+  name = name.replace(/\s+/g, " ").trim();
+  return name.length > 0 ? name : null;
 }
 
 // Keywords in category/subcategory that indicate utility bills

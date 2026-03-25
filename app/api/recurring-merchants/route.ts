@@ -45,9 +45,9 @@ export async function GET(request: Request) {
 
   if (txErr) return NextResponse.json({ error: txErr.message }, { status: 500 });
 
-  // Deduplicate by normalized merchant name, exclude transfers, keep last-3 amounts for average.
-  // normalizeMerchantName strips unique per-transaction codes after "*" so that
-  // "AMAZON MKTPL*2T1CF3AC3" and "AMAZON MKTPL*B91PY1NZ2" collapse to "AMAZON MKTPL".
+  // Deduplicate by normalized merchant name, exclude transfers and non-merchant patterns.
+  // normalizeMerchantName returns null for transfers, ATM ops, etc. — those are skipped.
+  // Remaining names are collapsed (e.g. "AMAZON MKTPL*2T1CF3AC3" → "AMAZON MKTPL").
   const merchantMap = new Map<string, number[]>();
   for (const tx of transactions ?? []) {
     if (TRANSFER_RE.test(tx.description)) continue;
