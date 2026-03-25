@@ -47,6 +47,14 @@ export async function GET(request: Request) {
   if (rulesErr) return NextResponse.json({ error: rulesErr.message }, { status: 500 });
   if (!rules?.length) return NextResponse.json([]);
 
+  // Bug 2 fix: deduplicate rules by merchant_key, keeping first occurrence
+  const seenKeys = new Set<string>();
+  const uniqueRules = rules.filter((r) => {
+    if (seenKeys.has(r.merchant_key)) return false;
+    seenKeys.add(r.merchant_key);
+    return true;
+  });
+
   // 2. Account IDs for this type
   const { data: accounts, error: accErr } = await db
     .from("accounts")
@@ -81,8 +89,11 @@ export async function GET(request: Request) {
   }
 
   // 5. Build display entry per rule
-  const result = rules.map((rule) => {
-    const sample = normalizedMap.get(rule.merchant_key) ?? [];
+  // Bug 1 fix: normalize rule.merchant_key before map lookup so that stale
+  // un-normalized keys (saved before normalization improvements) still match.
+  const result = uniqueRules.map((rule) => {
+    const lookupKey = normalizeMerchantName(rule.merchant_key) ?? rule.merchant_key;
+    const sample = normalizedMap.get(lookupKey) ?? [];
     const avgAmount =
       sample.length > 0
         ? sample.reduce((s, t) => s + Math.abs(t.amount), 0) / sample.length
