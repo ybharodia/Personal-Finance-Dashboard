@@ -34,8 +34,8 @@ export async function GET(request: Request) {
 
   const db = createAdminClient();
   const dbAccountTypes = account_type === "checking_savings"
-    ? ["checking", "savings"]
-    : ["credit"];
+    ? (["checking", "savings"] as const)
+    : (["credit"] as const);
 
   // 1. Active recurring rules for this account type
   const { data: rules, error: rulesErr } = await db
@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   const { data: accounts, error: accErr } = await db
     .from("accounts")
     .select("id")
-    .in("type", dbAccountTypes as string[]);
+    .in("type", dbAccountTypes);
 
   if (accErr) return NextResponse.json({ error: accErr.message }, { status: 500 });
   const accountIds = (accounts ?? []).map((a) => a.id);
