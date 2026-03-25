@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 
 const LIQUID_GROUPS = ["checking", "savings", "business_checking", "investment"];
+const HISTORY_DAYS = 60;
 
 /** Returns "YYYY-MM-DD" for a Date object using local-date arithmetic */
 function toIsoDate(d: Date): string {
@@ -21,7 +22,7 @@ export async function GET() {
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const sixtyDaysAgo = addDays(today, -59);
+    const sixtyDaysAgo = addDays(today, -(HISTORY_DAYS - 1));
     const fromStr = toIsoDate(sixtyDaysAgo);
     const toStr = toIsoDate(today);
 
@@ -29,7 +30,7 @@ export async function GET() {
     const [
       { data: accounts, error: accErr },
       { data: txns, error: txErr },
-      { data: stored },
+      { data: stored, error: storageErr },
     ] = await Promise.all([
       db.from("accounts").select("balance, account_group").in("account_group", LIQUID_GROUPS),
       db.from("transactions").select("date, amount, type").gte("date", fromStr).lte("date", toStr),
@@ -43,6 +44,10 @@ export async function GET() {
     if (txErr) {
       console.error("[balances/history] transactions error:", txErr.message);
       return NextResponse.json({ error: txErr.message }, { status: 500 });
+    }
+    if (storageErr) {
+      console.error("[balances/history] daily_balances error:", storageErr.message);
+      return NextResponse.json({ error: storageErr.message }, { status: 500 });
     }
 
     const todayTotal = (accounts ?? []).reduce((s, a) => s + Number(a.balance), 0);
@@ -61,10 +66,10 @@ export async function GET() {
     let runningBalance = todayTotal;
     reconstructed.set(toStr, runningBalance);
 
-    for (let i = 1; i < 60; i++) {
+    for (let i = 1; i < HISTORY_DAYS; i++) {
       const currDay = toIsoDate(addDays(today, -(i - 1)));
       const { income = 0, expenses = 0 } = byDate.get(currDay) ?? {};
-      // Reverse today's transactions to get yesterday's closing balance
+      // Reverse this day's transactions to get the previous day's closing balance
       runningBalance = runningBalance - income + expenses;
       const prevDay = toIsoDate(addDays(today, -i));
       reconstructed.set(prevDay, runningBalance);
