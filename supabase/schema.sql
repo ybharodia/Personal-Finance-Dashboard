@@ -3,11 +3,15 @@
 
 -- ── accounts ────────────────────────────────────────────────────────────────
 CREATE TABLE IF NOT EXISTS accounts (
-  id         TEXT PRIMARY KEY,
-  bank_name  TEXT        NOT NULL,
-  name       TEXT        NOT NULL,
-  type       TEXT        NOT NULL CHECK (type IN ('checking', 'savings', 'credit')),
-  balance    NUMERIC(12, 2) NOT NULL DEFAULT 0
+  id              TEXT PRIMARY KEY,
+  bank_name       TEXT           NOT NULL,
+  name            TEXT           NOT NULL,
+  type            TEXT           NOT NULL CHECK (type IN ('checking', 'savings', 'credit')),
+  balance         NUMERIC(12, 2) NOT NULL DEFAULT 0,
+  custom_name     TEXT,
+  plaid_account_id TEXT,
+  owner           TEXT,
+  account_group   TEXT
 );
 
 -- ── transactions ─────────────────────────────────────────────────────────────
