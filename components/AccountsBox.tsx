@@ -76,6 +76,8 @@ function TagModal({ account, onClose, onSaved }: TagModalProps) {
               <option value="">Select…</option>
               <option value="yash">Yash</option>
               <option value="nancy">Nancy</option>
+              <option value="joint">Joint</option>
+              <option value="business">Business</option>
             </select>
           </div>
 
@@ -90,6 +92,9 @@ function TagModal({ account, onClose, onSaved }: TagModalProps) {
               <option value="checking">Checking</option>
               <option value="savings">Savings</option>
               <option value="credit">Credit Card</option>
+              <option value="business_checking">Business Checking</option>
+              <option value="business_credit">Business Credit Card</option>
+              <option value="investment">Investment</option>
             </select>
           </div>
         </div>
