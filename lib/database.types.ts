@@ -10,6 +10,8 @@ export type Database = {
           balance: number;
           plaid_account_id: string;
           custom_name: string | null;
+          owner: string | null;
+          account_group: string | null;
         };
         Insert: {
           id: string;
@@ -19,6 +21,8 @@ export type Database = {
           balance: number;
           plaid_account_id: string;
           custom_name?: string | null;
+          owner?: string | null;
+          account_group?: string | null;
         };
         Update: {
           id?: string;
@@ -28,6 +32,8 @@ export type Database = {
           balance?: number;
           plaid_account_id?: string;
           custom_name?: string | null;
+          owner?: string | null;
+          account_group?: string | null;
         };
         Relationships: [];
       };
