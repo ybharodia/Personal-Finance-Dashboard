@@ -27,6 +27,7 @@ const EXCLUDE_PATTERNS = [
   /^NON-CHASE ATM/i,
   /^REMOTE ONLINE DEPOSIT/i,
   /^FEDWIRE CREDIT/i,
+  /ATM WITHDRAWAL/i,
 ] as const;
 
 // Hoisted for performance across 5k+ transactions per request
@@ -83,8 +84,9 @@ export function normalizeMerchantName(description: string): string | null {
     }
   } while (name !== prev);
 
-  // Step 6: collapse whitespace and trim
+  // Step 6: collapse whitespace, trim, strip trailing " PURCHASE" generic suffix
   name = name.replace(/\s+/g, " ").trim();
+  name = name.replace(/\s+PURCHASE$/i, "").trim();
   return name.length > 0 ? name : null;
 }
 
