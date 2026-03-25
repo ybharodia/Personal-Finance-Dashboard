@@ -51,7 +51,7 @@ export async function GET(request: Request) {
   const { data: accounts, error: accErr } = await db
     .from("accounts")
     .select("id")
-    .in("type", dbAccountTypes);
+    .in("type", dbAccountTypes as string[]);
 
   if (accErr) return NextResponse.json({ error: accErr.message }, { status: 500 });
   const accountIds = (accounts ?? []).map((a) => a.id);
