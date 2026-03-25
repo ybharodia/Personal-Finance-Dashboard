@@ -21,6 +21,8 @@ function typeLabel(group: string | null): string {
 function ownerLabel(owner: string | null): string {
   if (owner === "yash") return "Yash";
   if (owner === "nancy") return "Nancy";
+  if (owner === "joint") return "Joint";
+  if (owner === "business") return "Business";
   return "";
 }
 
@@ -141,6 +143,9 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
     setTagging(null);
   }
 
+  const isCreditCard = (a: DbAccount) =>
+    a.account_group === "credit" || a.account_group === "business_credit";
+
   const sections: Section[] = [
     {
       key: "untagged",
@@ -151,20 +156,34 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
       key: "yash",
       label: "Yash",
       accounts: localAccounts.filter(
-        (a) => !isUntagged(a) && a.owner === "yash" && a.account_group !== "credit"
+        (a) => !isUntagged(a) && a.owner === "yash" && !isCreditCard(a)
       ),
     },
     {
       key: "nancy",
       label: "Nancy",
       accounts: localAccounts.filter(
-        (a) => !isUntagged(a) && a.owner === "nancy" && a.account_group !== "credit"
+        (a) => !isUntagged(a) && a.owner === "nancy" && !isCreditCard(a)
+      ),
+    },
+    {
+      key: "joint",
+      label: "Joint",
+      accounts: localAccounts.filter(
+        (a) => !isUntagged(a) && a.owner === "joint" && !isCreditCard(a)
+      ),
+    },
+    {
+      key: "business",
+      label: "Business",
+      accounts: localAccounts.filter(
+        (a) => !isUntagged(a) && a.owner === "business" && !isCreditCard(a)
       ),
     },
     {
       key: "credit",
       label: "Credit Cards",
-      accounts: localAccounts.filter((a) => !isUntagged(a) && a.account_group === "credit"),
+      accounts: localAccounts.filter((a) => !isUntagged(a) && isCreditCard(a)),
     },
   ].filter((s) => s.accounts.length > 0);
 
@@ -192,7 +211,7 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
                 const label = typeLabel(acct.account_group);
                 const subtitle =
                   section.key === "credit"
-                    ? acct.owner
+                    ? ownerLabel(acct.owner)
                       ? `${ownerLabel(acct.owner)} · ${acct.bank_name}`
                       : acct.bank_name
                     : label
