@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
+import type React from "react";
 import { useRouter } from "next/navigation";
 import type { RecurringTransaction, RecurringFrequency } from "@/lib/recurring";
 import { buildManualRecurring, toMerchantKey } from "@/lib/recurring";
@@ -11,6 +12,7 @@ import ManageRecurringModal from "@/components/ManageRecurringModal";
 type Props = {
   recurring: RecurringTransaction[];
   allTransactions: DbTransaction[];
+  creditRecurring: RecurringTransaction[];
 };
 
 const FREQUENCY_LABELS: Record<RecurringFrequency, string> = {
@@ -48,9 +50,10 @@ function formatDateRelative(dateStr: string): { label: string; urgent: boolean }
 
 type FilterType = "all" | RecurringFrequency;
 
-export default function RecurringClient({ recurring, allTransactions }: Props) {
+export default function RecurringClient({ recurring, allTransactions, creditRecurring }: Props) {
   const router = useRouter();
   const [list, setList] = useState<RecurringTransaction[]>(recurring);
+  const [creditList, setCreditList] = useState<RecurringTransaction[]>(creditRecurring);
   const [filter, setFilter] = useState<FilterType>("all");
   const [showAddModal, setShowAddModal] = useState(false);
   const [addSearch, setAddSearch] = useState("");
@@ -70,23 +73,37 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
     [list]
   );
 
-  const counts = useMemo(
-    () => ({
-      monthly: list.filter((r) => r.frequency === "monthly").length,
-      biweekly: list.filter((r) => r.frequency === "biweekly").length,
-      weekly: list.filter((r) => r.frequency === "weekly").length,
-    }),
-    [list]
+  const { counts, byFrequencyMonthly } = useMemo(() => {
+    const counts = { monthly: 0, biweekly: 0, weekly: 0 };
+    const byFrequencyMonthly = { monthly: 0, biweekly: 0, weekly: 0 };
+    for (const r of list) {
+      counts[r.frequency]++;
+      byFrequencyMonthly[r.frequency] += r.monthlyAmount;
+    }
+    return { counts, byFrequencyMonthly };
+  }, [list]);
+
+  // ── Credit card derived state ─────────────────────────────────────────────
+
+  const creditFiltered = useMemo(
+    () => (filter === "all" ? creditList : creditList.filter((r) => r.frequency === filter)),
+    [creditList, filter]
   );
 
-  const byFrequencyMonthly = useMemo(
-    () => ({
-      monthly: list.filter((r) => r.frequency === "monthly").reduce((s, r) => s + r.monthlyAmount, 0),
-      biweekly: list.filter((r) => r.frequency === "biweekly").reduce((s, r) => s + r.monthlyAmount, 0),
-      weekly: list.filter((r) => r.frequency === "weekly").reduce((s, r) => s + r.monthlyAmount, 0),
-    }),
-    [list]
+  const creditTotalMonthly = useMemo(
+    () => creditList.reduce((sum, r) => sum + r.monthlyAmount, 0),
+    [creditList]
   );
+
+  const { counts: creditCounts, byFrequencyMonthly: creditByFrequencyMonthly } = useMemo(() => {
+    const counts = { monthly: 0, biweekly: 0, weekly: 0 };
+    const byFrequencyMonthly = { monthly: 0, biweekly: 0, weekly: 0 };
+    for (const r of creditList) {
+      counts[r.frequency]++;
+      byFrequencyMonthly[r.frequency] += r.monthlyAmount;
+    }
+    return { counts, byFrequencyMonthly };
+  }, [creditList]);
 
   // Unique merchants from all transactions that are NOT already in the list.
   // Deduplicated by normalized key, shown most-recent first.
@@ -116,9 +133,12 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
 
   // ── Actions ──────────────────────────────────────────────────────────────────
 
-  async function handleRemove(merchantKey: string) {
-    const snapshot = list; // capture current state for accurate rollback
-    setList((prev) => prev.filter((r) => r.merchantKey !== merchantKey));
+  async function handleRemove(
+    merchantKey: string,
+    snapshot: RecurringTransaction[],
+    setFn: React.Dispatch<React.SetStateAction<RecurringTransaction[]>>
+  ) {
+    setFn((prev) => prev.filter((r) => r.merchantKey !== merchantKey));
     setPendingKey(merchantKey);
     try {
       const res = await fetch("/api/recurring/overrides", {
@@ -130,10 +150,10 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
         const body = await res.json().catch(() => ({}));
         throw new Error(body.error ?? "Request failed");
       }
-      router.refresh(); // invalidate Next.js router cache so navigating back reflects the change
+      router.refresh();
     } catch (err) {
       console.error("[RecurringClient] handleRemove failed:", err);
-      setList(snapshot); // restore only this operation's state, not all previous removals
+      setFn(snapshot);
     } finally {
       setPendingKey(null);
     }
@@ -330,7 +350,7 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
                       </span>
                       {/* Remove button */}
                       <button
-                        onClick={() => handleRemove(r.merchantKey)}
+                        onClick={() => handleRemove(r.merchantKey, list, setList)}
                         title="Remove from recurring"
                         className="w-5 h-5 flex items-center justify-center rounded text-gray-600 hover:text-red-400 hover:bg-red-950/50 transition-colors"
                       >
@@ -385,6 +405,7 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
         {/* Tab: Credit Cards */}
         {activeTab === "credit_card" && (
           <>
+            {/* Sub-header with Manage button */}
             <div className="flex items-center justify-end mb-6">
               <button
                 onClick={() => setShowManageModal(true)}
@@ -393,25 +414,126 @@ export default function RecurringClient({ recurring, allTransactions }: Props) {
                 Manage Recurring
               </button>
             </div>
-            <div className="text-center py-20">
-              <svg
-                className="w-12 h-12 mx-auto text-gray-700 mb-4"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={1.5}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z"
-                />
-              </svg>
-              <p className="text-gray-400 font-medium">Credit card recurring rules</p>
-              <p className="text-gray-600 text-sm mt-1">
-                Use &ldquo;Manage Recurring&rdquo; to configure recurring merchants for your credit cards
-              </p>
+
+            {/* Summary cards */}
+            {creditList.length > 0 && (
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
+                <div className="col-span-2 md:col-span-1 bg-indigo-600/20 border border-indigo-500/30 rounded-xl p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-indigo-300">
+                    Monthly Committed
+                  </p>
+                  <p className="text-2xl font-bold text-white mt-1">
+                    {formatCurrency(creditTotalMonthly)}
+                  </p>
+                  <p className="text-xs text-indigo-300/70 mt-0.5">
+                    {creditList.length} recurring detected
+                  </p>
+                </div>
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Monthly</p>
+                  <p className="text-xl font-bold text-white mt-1">{creditCounts.monthly}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(creditByFrequencyMonthly.monthly)}/mo</p>
+                </div>
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Biweekly</p>
+                  <p className="text-xl font-bold text-white mt-1">{creditCounts.biweekly}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(creditByFrequencyMonthly.biweekly)}/mo</p>
+                </div>
+                <div className="bg-gray-900 border border-gray-800 rounded-xl p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Weekly</p>
+                  <p className="text-xl font-bold text-white mt-1">{creditCounts.weekly}</p>
+                  <p className="text-xs text-gray-500 mt-0.5">{formatCurrency(creditByFrequencyMonthly.weekly)}/mo</p>
+                </div>
+              </div>
+            )}
+
+            {/* Filter tabs */}
+            <div className="flex flex-wrap gap-2 mb-5">
+              {(["all", "monthly", "biweekly", "weekly"] as const).map((f) => (
+                <button
+                  key={f}
+                  onClick={() => setFilter(f)}
+                  className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                    filter === f
+                      ? "bg-indigo-600 text-white"
+                      : "bg-gray-900 text-gray-400 hover:bg-gray-800 hover:text-white border border-gray-800"
+                  }`}
+                >
+                  {f === "all"
+                    ? `All (${creditList.length})`
+                    : `${FREQUENCY_LABELS[f]} (${creditCounts[f]})`}
+                </button>
+              ))}
             </div>
+
+            {/* Cards grid */}
+            {creditFiltered.length === 0 ? (
+              <div className="text-center py-20">
+                <svg className="w-12 h-12 mx-auto text-gray-700 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
+                </svg>
+                <p className="text-gray-400 font-medium">No recurring credit card transactions detected</p>
+                <p className="text-gray-600 text-sm mt-1">Recurring subscriptions paid via credit card will appear here</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {creditFiltered.map((r) => {
+                  const categoryMeta = r.category ? getCategoryMeta(r.category) : null;
+                  const nextDate = formatDateRelative(r.nextPredictedDate);
+                  const isRemoving = pendingKey === r.merchantKey;
+                  return (
+                    <div
+                      key={r.merchantKey}
+                      className={`bg-gray-900 border border-gray-800 rounded-xl p-5 flex flex-col gap-3 transition-all ${
+                        isRemoving ? "opacity-50 pointer-events-none" : "hover:border-gray-700"
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <h3 className="text-sm font-semibold text-white leading-snug line-clamp-2 flex-1">
+                          {r.merchant}
+                        </h3>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${FREQUENCY_BADGE[r.frequency]}`}>
+                            {FREQUENCY_LABELS[r.frequency]}
+                          </span>
+                          <button
+                            onClick={() => handleRemove(r.merchantKey, creditList, setCreditList)}
+                            title="Remove from recurring"
+                            className="w-5 h-5 flex items-center justify-center rounded text-gray-600 hover:text-red-400 hover:bg-red-950/50 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                          </button>
+                        </div>
+                      </div>
+                      {categoryMeta && (
+                        <div className="flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full shrink-0" style={{ backgroundColor: categoryMeta.color }} />
+                          <span className="text-xs text-gray-400">{categoryMeta.name}</span>
+                          {r.subcategory && <span className="text-xs text-gray-600">· {r.subcategory}</span>}
+                        </div>
+                      )}
+                      <div>
+                        <p className="text-2xl font-bold text-white">
+                          {formatCurrency(r.monthlyAmount)}
+                          <span className="text-sm font-normal text-gray-400">/mo</span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {formatCurrency(r.averageAmount)} per charge &middot; {r.occurrences} occurrences found
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between text-xs border-t border-gray-800 pt-3">
+                        <span className="text-gray-500">Next predicted</span>
+                        <span className={nextDate.urgent ? "text-amber-400 font-medium" : "text-gray-300"}>
+                          {nextDate.label}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </>
         )}
       </div>

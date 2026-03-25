@@ -9,6 +9,16 @@ function isValidAccountType(v: unknown): v is RecurringAccountType {
   return VALID_ACCOUNT_TYPES.includes(v as RecurringAccountType);
 }
 
+/**
+ * Normalize a raw Plaid transaction description into a clean merchant name.
+ * Strips unique per-transaction codes that appear after an asterisk so that
+ * "AMAZON MKTPL*2T1CF3AC3" and "AMAZON MKTPL*361Y86D43" collapse to "AMAZON MKTPL".
+ */
+function normalizeMerchantName(description: string): string {
+  const asteriskIdx = description.indexOf("*");
+  return (asteriskIdx !== -1 ? description.slice(0, asteriskIdx) : description).trim();
+}
+
 // GET /api/recurring-merchants?account_type=checking_savings|credit_card
 // Returns unique merchants from transactions belonging to matching accounts,
 // excluding internal transfers, sorted alphabetically.
@@ -44,12 +54,16 @@ export async function GET(request: Request) {
 
   if (txErr) return NextResponse.json({ error: txErr.message }, { status: 500 });
 
-  // Deduplicate by description, exclude transfers, keep last-3 amounts for average
+  // Deduplicate by normalized merchant name, exclude transfers, keep last-3 amounts for average.
+  // normalizeMerchantName strips unique per-transaction codes after "*" so that
+  // "AMAZON MKTPL*2T1CF3AC3" and "AMAZON MKTPL*B91PY1NZ2" collapse to "AMAZON MKTPL".
   const merchantMap = new Map<string, number[]>();
   for (const tx of transactions ?? []) {
     if (TRANSFER_RE.test(tx.description)) continue;
-    const amounts = merchantMap.get(tx.description) ?? [];
-    if (!merchantMap.has(tx.description)) merchantMap.set(tx.description, amounts);
+    const key = normalizeMerchantName(tx.description);
+    if (!key) continue;
+    const amounts = merchantMap.get(key) ?? [];
+    if (!merchantMap.has(key)) merchantMap.set(key, amounts);
     if (amounts.length < 3) amounts.push(tx.amount);
   }
 

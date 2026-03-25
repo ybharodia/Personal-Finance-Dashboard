@@ -1,4 +1,4 @@
-import { getTransactionsByDateRange, getRecurringOverrides } from "@/lib/db";
+import { getTransactionsByDateRange, getRecurringOverrides, getAccounts } from "@/lib/db";
 import {
   detectRecurringTransactions,
   buildManualRecurring,
@@ -22,32 +22,52 @@ export default async function RecurringPage() {
   tomorrow.setDate(tomorrow.getDate() + 1);
   const to = tomorrow.toISOString().split("T")[0];
 
-  const [transactions, overrides] = await Promise.all([
+  const [transactions, overrides, accounts] = await Promise.all([
     getTransactionsByDateRange(from, to),
-    getRecurringOverrides().catch(() => []), // gracefully degrade if table doesn't exist yet
+    getRecurringOverrides().catch(() => []),
+    getAccounts(),
   ]);
 
-  let recurring = detectRecurringTransactions(transactions);
+  // Separate account IDs by type so recurring detection is scoped per tab
+  const checkingSavingsIds = new Set(
+    accounts.filter((a) => a.type === "checking" || a.type === "savings").map((a) => a.id)
+  );
+  const creditIds = new Set(
+    accounts.filter((a) => a.type === "credit").map((a) => a.id)
+  );
 
-  // Apply force-excludes: remove merchants the user has dismissed
+  const checkingSavingsTxns = transactions.filter((tx) => checkingSavingsIds.has(tx.account_id));
+  const creditTxns = transactions.filter((tx) => creditIds.has(tx.account_id));
+
+  // Detect recurring independently for each account type
+  let checkingSavingsRecurring = detectRecurringTransactions(checkingSavingsTxns);
+  const creditRecurring = detectRecurringTransactions(creditTxns);
+
+  // Apply overrides (force-exclude / force-include) only to checking & savings
   const excludedKeys = new Set(
     overrides.filter((o) => !o.is_recurring).map((o) => o.merchant_key)
   );
-  recurring = recurring.filter((r) => !excludedKeys.has(r.merchantKey));
+  checkingSavingsRecurring = checkingSavingsRecurring.filter(
+    (r) => !excludedKeys.has(r.merchantKey)
+  );
 
-  // Apply force-includes: add merchants the user manually flagged as recurring
-  const existingKeys = new Set(recurring.map((r) => r.merchantKey));
+  const existingKeys = new Set(checkingSavingsRecurring.map((r) => r.merchantKey));
   for (const override of overrides.filter((o) => o.is_recurring)) {
-    if (existingKeys.has(override.merchant_key)) continue; // already detected
-    const matching = transactions.filter(
+    if (existingKeys.has(override.merchant_key)) continue;
+    const matching = checkingSavingsTxns.filter(
       (tx) => tx.type !== "income" && toMerchantKey(tx.description) === override.merchant_key
     );
     if (matching.length === 0) continue;
-    recurring.push(buildManualRecurring(matching, override.merchant_key));
+    checkingSavingsRecurring.push(buildManualRecurring(matching, override.merchant_key));
   }
 
-  // Re-sort after applying overrides
-  recurring.sort((a, b) => b.monthlyAmount - a.monthlyAmount);
+  checkingSavingsRecurring.sort((a, b) => b.monthlyAmount - a.monthlyAmount);
 
-  return <RecurringClient recurring={recurring} allTransactions={transactions} />;
+  return (
+    <RecurringClient
+      recurring={checkingSavingsRecurring}
+      allTransactions={checkingSavingsTxns}
+      creditRecurring={creditRecurring}
+    />
+  );
 }
