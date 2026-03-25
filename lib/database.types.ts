@@ -184,6 +184,24 @@ export type Database = {
         };
         Relationships: [];
       };
+      daily_balances: {
+        Row: {
+          date: string;
+          total_balance: number;
+          updated_at: string;
+        };
+        Insert: {
+          date: string;
+          total_balance: number;
+          updated_at?: string;
+        };
+        Update: {
+          date?: string;
+          total_balance?: number;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -202,3 +220,4 @@ export type DbPlaidItem         = Database["public"]["Tables"]["plaid_items"]["R
 export type DbBudgetCategory    = Database["public"]["Tables"]["budget_categories"]["Row"];
 export type DbRecurringOverride = Database["public"]["Tables"]["recurring_overrides"]["Row"];
 export type DbMerchantRule     = Database["public"]["Tables"]["merchant_rules"]["Row"];
+export type DbDailyBalance    = Database["public"]["Tables"]["daily_balances"]["Row"];

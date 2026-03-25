@@ -39,3 +39,13 @@ CREATE TABLE IF NOT EXISTS budgets (
 );
 
 CREATE INDEX IF NOT EXISTS budgets_month_year_idx ON budgets(month, year);
+
+-- ── daily_balances ────────────────────────────────────────────────────────────
+-- Optional override rows. If a row exists for a date, it takes precedence over
+-- the reconstructed value from account balances + transaction history.
+-- NOTE: Run this DDL manually in the Supabase SQL Editor after updating this file.
+CREATE TABLE IF NOT EXISTS daily_balances (
+  date          DATE PRIMARY KEY,
+  total_balance NUMERIC(12, 2) NOT NULL,
+  updated_at    TIMESTAMPTZ    NOT NULL DEFAULT now()
+);
