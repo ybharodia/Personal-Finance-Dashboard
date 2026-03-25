@@ -1,22 +1,13 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
 import type { RecurringAccountType } from "@/lib/database.types";
+import { normalizeMerchantName } from "@/lib/recurring";
 
 const TRANSFER_RE = /transfer|xfer|zelle|venmo/i;
 const VALID_ACCOUNT_TYPES: RecurringAccountType[] = ["checking_savings", "credit_card"];
 
 function isValidAccountType(v: unknown): v is RecurringAccountType {
   return VALID_ACCOUNT_TYPES.includes(v as RecurringAccountType);
-}
-
-/**
- * Normalize a raw Plaid transaction description into a clean merchant name.
- * Strips unique per-transaction codes that appear after an asterisk so that
- * "AMAZON MKTPL*2T1CF3AC3" and "AMAZON MKTPL*361Y86D43" collapse to "AMAZON MKTPL".
- */
-function normalizeMerchantName(description: string): string {
-  const asteriskIdx = description.indexOf("*");
-  return (asteriskIdx !== -1 ? description.slice(0, asteriskIdx) : description).trim();
 }
 
 // GET /api/recurring-merchants?account_type=checking_savings|credit_card

@@ -17,6 +17,27 @@ export type RecurringTransaction = {
   subcategory: string | null;
 };
 
+// Regex patterns for Plaid-specific suffix stripping (hoisted for perf across 5k tx)
+const ID_SUFFIX_RE = /\s+(?:WEB|PPD)\s+ID:.*$/i;
+const TRAILING_CODE_RE = /\s+[A-Z0-9]{8,}$/i;
+
+/**
+ * Normalize a raw Plaid transaction description into a clean display merchant name.
+ * Strips per-transaction codes so variants collapse to a single key:
+ *   "AMAZON MKTPL*2T1CF3AC3"                              → "AMAZON MKTPL"
+ *   "AMERICAN EXPRESS ACH PMT A2440 WEB ID: 9493560001"   → "AMERICAN EXPRESS ACH PMT"
+ *   "CITYOFRALUTIL BILLPAY PPD ID: 0000000160"            → "CITYOFRALUTIL BILLPAY"
+ *   "VW CREDIT INC AUTO DEBIT 00000815295745"             → "VW CREDIT INC AUTO DEBIT"
+ */
+export function normalizeMerchantName(description: string): string {
+  let name = description;
+  const asteriskIdx = name.indexOf("*");
+  if (asteriskIdx !== -1) name = name.slice(0, asteriskIdx);
+  name = name.replace(ID_SUFFIX_RE, "");
+  name = name.replace(TRAILING_CODE_RE, "");
+  return name.trim();
+}
+
 // Keywords in category/subcategory that indicate utility bills
 const UTILITY_KEYWORDS = [
   "utilities", "electric", "electricity", "gas", "natural gas",

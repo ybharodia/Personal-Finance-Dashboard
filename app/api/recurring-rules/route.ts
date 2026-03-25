@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { normalizeMerchantName } from "@/lib/recurring";
 
 const VALID_ACCOUNT_TYPES = ["checking_savings", "credit_card"] as const;
 type AccountType = (typeof VALID_ACCOUNT_TYPES)[number];
@@ -38,7 +39,8 @@ export async function POST(request: Request) {
       frequency: string | null;
       transaction_type: string | null;
     };
-    const { merchant_key, account_type, is_recurring, frequency, transaction_type } = body;
+    const { merchant_key: raw_key, account_type, is_recurring, frequency, transaction_type } = body;
+    const merchant_key = normalizeMerchantName(raw_key ?? "");
 
     if (!merchant_key || !isValidAccountType(account_type)) {
       return NextResponse.json({ error: "Invalid body" }, { status: 400 });
