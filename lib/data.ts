@@ -43,3 +43,10 @@ export function fmtDate(iso: string): string {
     day: "numeric",
   });
 }
+
+/** Pick 5 evenly-spaced indices from an array of length n */
+export function fiveIndices(n: number): number[] {
+  if (n <= 5) return Array.from({ length: n }, (_, i) => i);
+  const step = (n - 1) / 4;
+  return [0, 1, 2, 3, 4].map((i) => Math.round(i * step));
+}

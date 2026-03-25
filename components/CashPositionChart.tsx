@@ -9,16 +9,9 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { formatCurrency, fmtDate } from "@/lib/data";
+import { formatCurrency, fmtDate, fiveIndices } from "@/lib/data";
 
 type DataPoint = { date: string; total_balance: number };
-
-/** Pick 5 evenly-spaced indices from an array of length n */
-function fiveIndices(n: number): number[] {
-  if (n <= 5) return Array.from({ length: n }, (_, i) => i);
-  const step = (n - 1) / 4;
-  return [0, 1, 2, 3, 4].map((i) => Math.round(i * step));
-}
 
 type CustomTooltipProps = {
   active?: boolean;
