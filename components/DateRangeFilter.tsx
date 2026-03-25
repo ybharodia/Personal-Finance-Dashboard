@@ -5,8 +5,7 @@ import { useState } from "react";
 export type Preset =
   | "this-month"
   | "last-month"
-  | "last-90"
-  | "last-year"
+  | "this-year"
   | "last-2-years"
   | "custom";
 
@@ -33,14 +32,8 @@ export function getPresetRange(preset: Preset): DateRange {
       const to = new Date(today.getFullYear(), today.getMonth(), 1);
       return { from, to, preset };
     }
-    case "last-90": {
-      const from = new Date(today);
-      from.setDate(from.getDate() - 90);
-      return { from, to: tomorrow, preset };
-    }
-    case "last-year": {
-      const from = new Date(today);
-      from.setDate(from.getDate() - 365);
+    case "this-year": {
+      const from = new Date(today.getFullYear(), 0, 1);
       return { from, to: tomorrow, preset };
     }
     case "last-2-years": {
@@ -62,7 +55,6 @@ function toInputDate(d: Date): string {
 }
 
 function fromInputDate(s: string): Date {
-  // Parse YYYY-MM-DD without timezone shift
   const [y, m, d] = s.split("-").map(Number);
   return new Date(y, m - 1, d);
 }
@@ -70,8 +62,7 @@ function fromInputDate(s: string): Date {
 const PRESETS: { key: Preset; label: string }[] = [
   { key: "this-month", label: "This Month" },
   { key: "last-month", label: "Last Month" },
-  { key: "last-90", label: "Last 90 Days" },
-  { key: "last-year", label: "Last Year" },
+  { key: "this-year", label: "This Year" },
   { key: "last-2-years", label: "Last 2 Years" },
   { key: "custom", label: "Custom Range" },
 ];
@@ -97,7 +88,6 @@ export default function DateRangeFilter({ value, onChange }: Props) {
 
   function handleCustomApply() {
     const from = fromInputDate(customFrom);
-    // "to" is exclusive: add 1 day to the selected end date
     const toBase = fromInputDate(customTo);
     const to = new Date(toBase);
     to.setDate(to.getDate() + 1);
