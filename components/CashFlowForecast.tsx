@@ -110,6 +110,7 @@ export default function CashFlowForecast() {
                 tickLine={false}
                 axisLine={false}
                 tick={{ fontSize: 11, fill: "#9ca3af" }}
+                padding={{ left: 12, right: 12 }}
               />
               <Tooltip content={<CustomTooltip />} />
               {/* Solid anchor dot at day 0 (today's actual balance) */}
