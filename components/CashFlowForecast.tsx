@@ -4,12 +4,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { AreaChart, Area, XAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { formatCurrency, fmtDate, fiveIndices } from "@/lib/data";
+import type { ForecastPayload } from "@/app/api/forecast/route";
 
-type ApiResponse = {
-  current_balance: number;
-  projected_balance: number;
-  data: Array<{ date: string; balance: number; is_forecast: boolean }>;
-};
+type ApiResponse = Pick<ForecastPayload, "startingBalance" | "days">;
 
 type ChartPoint = {
   date: string;
@@ -57,11 +54,11 @@ export default function CashFlowForecast() {
 
   const chartData = useMemo<ChartPoint[]>(() => {
     if (!raw) return [];
-    return raw.data.map((p) => ({
+    return raw.days.map((p, i) => ({
       date: p.date,
-      balance_actual: p.is_forecast ? null : p.balance,
+      balance_actual: i === 0 ? p.balance : null,
       balance_forecast: p.balance,
-      is_forecast: p.is_forecast,
+      is_forecast: i > 0,
     }));
   }, [raw]);
 
@@ -79,7 +76,7 @@ export default function CashFlowForecast() {
         </p>
         {raw ? (
           <p className="text-2xl font-bold text-gray-900 tabular-nums mt-0.5">
-            {formatCurrency(raw.projected_balance)}{" "}
+            {formatCurrency(raw.days[raw.days.length - 1]?.balance ?? raw.startingBalance)}{" "}
             <span className="text-sm font-normal text-gray-400">projected</span>
           </p>
         ) : (

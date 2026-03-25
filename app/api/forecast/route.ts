@@ -1,145 +1,180 @@
 // app/api/forecast/route.ts
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { normalizeMerchantName } from "@/lib/recurring";
 
-const LIQUID_GROUPS = ["checking", "savings", "business_checking", "investment"];
 const FORECAST_DAYS = 30;
-const LOOKBACK_DAYS = 90;
 
 function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-function addDays(d: Date, days: number): Date {
+function addDays(d: Date, n: number): Date {
   const r = new Date(d);
-  r.setDate(r.getDate() + days);
+  r.setDate(r.getDate() + n);
   return r;
 }
 
-/** Returns the number of days in the given month (1-indexed month) */
-function daysInMonth(year: number, month: number): number {
-  return new Date(year, month, 0).getDate();
+/** Advance one interval from a given date based on frequency */
+function nextOccurrence(from: Date, frequency: string): Date {
+  const d = new Date(from);
+  if (frequency === "weekly") d.setDate(d.getDate() + 7);
+  else if (frequency === "biweekly") d.setDate(d.getDate() + 14);
+  else if (frequency === "monthly") d.setMonth(d.getMonth() + 1);
+  else if (frequency === "quarterly") d.setMonth(d.getMonth() + 3);
+  else if (frequency === "annually") d.setFullYear(d.getFullYear() + 1);
+  return d;
 }
 
-type RawTxn = { description: string; amount: number; date: string; type: string; category: string };
-type RecurringItem = {
-  description: string;
-  avgAmount: number;
-  avgDayOfMonth: number;
-  isIncome: boolean;
+/** Returns all future occurrence dates within (today, endDate] */
+function getOccurrences(lastDate: Date, frequency: string, today: Date, endDate: Date): Date[] {
+  const occurrences: Date[] = [];
+  let cursor = new Date(lastDate);
+  // Advance past today
+  while (cursor <= today) {
+    cursor = nextOccurrence(cursor, frequency);
+  }
+  // Collect all within the 30-day window
+  while (cursor <= endDate) {
+    occurrences.push(new Date(cursor));
+    cursor = nextOccurrence(cursor, frequency);
+  }
+  return occurrences;
+}
+
+export type ForecastEvent = {
+  date: string;
+  merchant_key: string;
+  amount: number;
+  transaction_type: "income" | "expense";
 };
 
-/**
- * Finds merchants that appear ≥2 times with amounts within `threshold` of each other.
- * threshold = 0.10 means max/min ≤ 1.10 (within 10%).
- * Returns one RecurringItem per qualifying merchant.
- */
-function detectRecurring(txns: RawTxn[], threshold: number): RecurringItem[] {
-  const groups = new Map<string, Array<{ amount: number; day: number; isIncome: boolean }>>();
+export type ForecastDay = {
+  date: string;
+  balance: number;
+  events: ForecastEvent[];
+};
 
-  for (const t of txns) {
-    // Parse day directly from ISO string to avoid timezone shifts
-    const day = Number(t.date.split("-")[2]);
-    const list = groups.get(t.description) ?? [];
-    list.push({ amount: Number(t.amount), day, isIncome: t.type === "income" });
-    groups.set(t.description, list);
-  }
-
-  const result: RecurringItem[] = [];
-  for (const [description, entries] of groups) {
-    if (entries.length < 2) continue;
-    const amounts = entries.map((e) => e.amount);
-    const min = Math.min(...amounts);
-    const max = Math.max(...amounts);
-    if (min <= 0) continue;
-    if (max / min > 1 + threshold) continue;
-    const firstType = entries[0].isIncome;
-    if (entries.some((e) => e.isIncome !== firstType)) continue;
-
-    const avgAmount = amounts.reduce((a, b) => a + b, 0) / amounts.length;
-    const avgDay = entries.reduce((a, e) => a + e.day, 0) / entries.length;
-
-    result.push({ description, avgAmount, avgDayOfMonth: Math.round(avgDay), isIncome: firstType });
-  }
-  return result;
-}
+export type ForecastPayload = {
+  startingBalance: number;
+  days: ForecastDay[];
+  upcomingEvents: ForecastEvent[];
+};
 
 export async function GET() {
   try {
     const db = createAdminClient();
-
     const today = new Date();
     today.setHours(0, 0, 0, 0);
-    const lookbackStart = addDays(today, -LOOKBACK_DAYS);
+    const endDate = addDays(today, FORECAST_DAYS);
 
+    // Steps 1+2: Fetch accounts (id+balance) and recurring rules in parallel
     const [
-      { data: accounts, error: accErr },
-      { data: txnRows, error: txErr },
+      { data: accountData, error: acctErr },
+      { data: rules, error: rulesErr },
     ] = await Promise.all([
-      db.from("accounts").select("balance, account_group").in("account_group", LIQUID_GROUPS),
-      db
-        .from("transactions")
-        .select("description, date, amount, type, category")
-        .gte("date", toIsoDate(lookbackStart))
-        .lt("date", toIsoDate(today)),
+      db.from("accounts").select("id, balance").in("type", ["checking", "savings"] as const),
+      db.from("recurring_rules")
+        .select("merchant_key, frequency, transaction_type")
+        .eq("account_type", "checking_savings")
+        .eq("is_recurring", true),
     ]);
 
-    if (accErr) {
-      console.error("[forecast] accounts error:", accErr.message);
-      return NextResponse.json({ error: accErr.message }, { status: 500 });
-    }
-    if (txErr) {
-      console.error("[forecast] transactions error:", txErr.message);
-      return NextResponse.json({ error: txErr.message }, { status: 500 });
-    }
+    if (acctErr) return NextResponse.json({ error: acctErr.message }, { status: 500 });
+    if (rulesErr) return NextResponse.json({ error: rulesErr.message }, { status: 500 });
 
-    const currentBalance = (accounts ?? []).reduce((s, a) => s + Number(a.balance), 0);
+    const startingBalance = (accountData ?? []).reduce((s, a) => s + Number(a.balance), 0);
+    const accountIds = (accountData ?? []).map((a) => a.id);
 
-    const allTxns = (txnRows ?? []) as RawTxn[];
-    const regularTxns: RawTxn[] = [];
-    const transferTxns: RawTxn[] = [];
-    for (const t of allTxns) {
-      (/transfer/i.test(t.category) ? transferTxns : regularTxns).push(t);
+    // If no rules, return flat balance across 30 days
+    if (!rules?.length) {
+      const days: ForecastDay[] = Array.from({ length: FORECAST_DAYS + 1 }, (_, i) => ({
+        date: toIsoDate(addDays(today, i)),
+        balance: startingBalance,
+        events: [],
+      }));
+      return NextResponse.json({ startingBalance, days, upcomingEvents: [] } satisfies ForecastPayload);
     }
 
-    const regularRecurring = detectRecurring(regularTxns, 0.1);
-    const transferRecurring = detectRecurring(transferTxns, 0.4);
-    const allRecurring = [...regularRecurring, ...transferRecurring];
+    const { data: txRows, error: txErr } = accountIds.length
+      ? await db
+          .from("transactions")
+          .select("description, amount, date")
+          .in("account_id", accountIds)
+          .order("date", { ascending: false })
+          .limit(5000)
+      : { data: [], error: null };
 
-    // Project forward FORECAST_DAYS days
-    const data: Array<{ date: string; balance: number; is_forecast: boolean }> = [];
-    data.push({ date: toIsoDate(today), balance: currentBalance, is_forecast: false });
+    if (txErr) return NextResponse.json({ error: txErr.message }, { status: 500 });
 
-    let runningBalance = currentBalance;
-    // Prevents double-applying same merchant in the same calendar month
-    const applied = new Set<string>();
-
-    for (let i = 1; i <= FORECAST_DAYS; i++) {
-      const day = addDays(today, i);
-      const dayOfMonth = day.getDate();
-      const yearMonth = day.getFullYear() * 100 + (day.getMonth() + 1);
-
-      for (const item of allRecurring) {
-        const key = `${item.description}:${yearMonth}`;
-        if (applied.has(key)) continue;
-        const clampedDay = Math.min(item.avgDayOfMonth, daysInMonth(day.getFullYear(), day.getMonth() + 1));
-        if (Math.abs(dayOfMonth - clampedDay) <= 1) {
-          runningBalance += item.isIncome ? item.avgAmount : -item.avgAmount;
-          applied.add(key);
-        }
+    // Build normalized map: normalizedKey → up to 3 most-recent [{amount, date}]
+    const normalizedMap = new Map<string, { amount: number; date: string }[]>();
+    for (const tx of txRows ?? []) {
+      const key = normalizeMerchantName(tx.description);
+      if (!key) continue;
+      const bucket = normalizedMap.get(key);
+      if (bucket) {
+        if (bucket.length < 3) bucket.push({ amount: tx.amount, date: tx.date });
+      } else {
+        normalizedMap.set(key, [{ amount: tx.amount, date: tx.date }]);
       }
-
-      data.push({ date: toIsoDate(day), balance: runningBalance, is_forecast: true });
     }
 
-    return NextResponse.json({
-      current_balance: currentBalance,
-      projected_balance: runningBalance,
-      data,
-    });
+    // Steps 4+: For each rule, compute projected amount and all occurrences
+    const allEvents: ForecastEvent[] = [];
+
+    for (const rule of rules) {
+      const freq = rule.frequency as string | null;
+      if (!freq) continue;
+
+      // Normalize the stored key (may have been saved before normalization improvements)
+      const lookupKey = normalizeMerchantName(rule.merchant_key) ?? rule.merchant_key;
+      const sample = normalizedMap.get(lookupKey) ?? [];
+      if (sample.length === 0) continue; // Skip rules with no transaction history
+
+      const projectedAmount =
+        sample.reduce((s, t) => s + Math.abs(t.amount), 0) / sample.length;
+      const lastDate = new Date(sample[0].date + "T00:00:00");
+      const txType = (rule.transaction_type ?? "expense") as "income" | "expense";
+
+      for (const occ of getOccurrences(lastDate, freq, today, endDate)) {
+        allEvents.push({
+          date: toIsoDate(occ),
+          merchant_key: rule.merchant_key,
+          amount: projectedAmount,
+          transaction_type: txType,
+        });
+      }
+    }
+
+    // Step 5: Build day-by-day running balance (day 0 = today = anchor, no events applied)
+    const eventsByDate = new Map<string, ForecastEvent[]>();
+    for (const e of allEvents) {
+      const bucket = eventsByDate.get(e.date);
+      if (bucket) bucket.push(e);
+      else eventsByDate.set(e.date, [e]);
+    }
+
+    const days: ForecastDay[] = [];
+    let runningBalance = startingBalance;
+
+    for (let i = 0; i <= FORECAST_DAYS; i++) {
+      const date = toIsoDate(addDays(today, i));
+      const dayEvents = i === 0 ? [] : (eventsByDate.get(date) ?? []);
+      for (const e of dayEvents) {
+        runningBalance += e.transaction_type === "income" ? e.amount : -e.amount;
+      }
+      days.push({ date, balance: runningBalance, events: dayEvents });
+    }
+
+    // Step 6: Return payload
+    allEvents.sort((a, b) => a.date.localeCompare(b.date));
+    const upcomingEvents = allEvents;
+
+    return NextResponse.json({ startingBalance, days, upcomingEvents } satisfies ForecastPayload);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Unknown error";
-    console.error("[forecast] unexpected error:", err);
+    console.error("[forecast] error:", err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
