@@ -27,6 +27,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
+  const [filterCategory, setFilterCategory] = useState("");
   const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
 
   // Sync fresh server data into local state after router.refresh()
@@ -34,6 +35,18 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
   const [editingTx, setEditingTx] = useState<DbTransaction | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"income" | "expense" | "transfer" | null>(null);
+
+  const uniqueCategories = useMemo(() => {
+    const seen = new Set<string>();
+    const result: { id: string; name: string }[] = [];
+    for (const t of localTxns) {
+      if (t.category && !seen.has(t.category)) {
+        seen.add(t.category);
+        result.push({ id: t.category, name: getCategoryMeta(t.category, categories)?.name ?? t.category });
+      }
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  }, [localTxns, categories]);
 
   const filtered = useMemo(() => {
     const fromStr = toIsoDate(dateRange.from);
@@ -56,8 +69,13 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
           (accounts.find((a) => a.id === t.account_id)?.bank_name ?? "").toLowerCase().includes(q)
       );
     }
+
+    if (filterCategory) {
+      list = list.filter((t) => t.category === filterCategory);
+    }
+
     return list;
-  }, [selectedAccount, search, dateRange, localTxns, accounts]);
+  }, [selectedAccount, search, dateRange, filterCategory, localTxns, accounts, categories]);
 
   // Totals always reflect the full date/account/search-filtered set, regardless of type filter
   const totalIncome    = filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
@@ -145,8 +163,21 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
             </div>
           </div>
 
-          {/* Date range filter */}
-          <DateRangeFilter value={dateRange} onChange={setDateRange} />
+          {/* Date range filter + Category filter */}
+          <div className="flex flex-wrap items-center gap-3">
+            <DateRangeFilter value={dateRange} onChange={setDateRange} />
+            <div className="h-4 w-px bg-gray-200" />
+            <select
+              value={filterCategory}
+              onChange={(e) => setFilterCategory(e.target.value)}
+              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all"
+            >
+              <option value="">All categories</option>
+              {uniqueCategories.map((c) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
 
           {/* Search */}
           <div className="relative">

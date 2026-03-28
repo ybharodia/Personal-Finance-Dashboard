@@ -64,7 +64,6 @@ const PRESETS: { key: Preset; label: string }[] = [
   { key: "last-month", label: "Last Month" },
   { key: "this-year", label: "This Year" },
   { key: "last-2-years", label: "Last 2 Years" },
-  { key: "custom", label: "Custom Range" },
 ];
 
 type Props = {
@@ -79,14 +78,14 @@ export default function DateRangeFilter({ value, onChange }: Props) {
   );
 
   function handlePreset(preset: Preset) {
-    if (preset === "custom") {
-      onChange({ ...value, preset });
-      return;
-    }
-    onChange(getPresetRange(preset));
+    const range = getPresetRange(preset);
+    setCustomFrom(toInputDate(range.from));
+    setCustomTo(toInputDate(new Date(range.to.getTime() - 86400000)));
+    onChange(range);
   }
 
   function handleCustomApply() {
+    if (!customFrom || !customTo) return;
     const from = fromInputDate(customFrom);
     const toBase = fromInputDate(customTo);
     const to = new Date(toBase);
@@ -110,29 +109,32 @@ export default function DateRangeFilter({ value, onChange }: Props) {
         </button>
       ))}
 
-      {value.preset === "custom" && (
-        <div className="flex items-center gap-2 ml-1">
-          <input
-            type="date"
-            value={customFrom}
-            onChange={(e) => setCustomFrom(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-          />
-          <span className="text-xs text-gray-400">to</span>
-          <input
-            type="date"
-            value={customTo}
-            onChange={(e) => setCustomTo(e.target.value)}
-            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
-          />
-          <button
-            onClick={handleCustomApply}
-            className="px-3 py-1.5 text-xs font-medium bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
-          >
-            Apply
-          </button>
-        </div>
-      )}
+      <div className="flex items-center gap-2 ml-1">
+        <span className="text-xs text-gray-400">From</span>
+        <input
+          type="date"
+          value={customFrom}
+          onChange={(e) => setCustomFrom(e.target.value)}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        />
+        <span className="text-xs text-gray-400">To</span>
+        <input
+          type="date"
+          value={customTo}
+          onChange={(e) => setCustomTo(e.target.value)}
+          className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+        />
+        <button
+          onClick={handleCustomApply}
+          className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+            value.preset === "custom"
+              ? "bg-indigo-600 text-white border-indigo-600"
+              : "bg-white text-gray-600 border-gray-200 hover:border-indigo-300 hover:text-indigo-600"
+          }`}
+        >
+          Apply
+        </button>
+      </div>
     </div>
   );
 }
