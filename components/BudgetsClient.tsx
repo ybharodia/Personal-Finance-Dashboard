@@ -908,47 +908,42 @@ export default function BudgetsClient({
   // State for AddSubcategoryModal
   const [addingSubFor, setAddingSubFor] = useState<{ catId: string; catName: string; catColor: string } | null>(null);
 
-  // Month navigation state
-  const [selectedMonth, setSelectedMonth] = useState(month);
-  const [selectedYear, setSelectedYear] = useState(year);
-  const [selectedTransactions, setSelectedTransactions] = useState<DbTransaction[]>(transactions);
-  const [loadingMonth, setLoadingMonth] = useState(false);
+  // All pre-loaded transactions (2-year window loaded server-side)
+  const [allTransactions, setAllTransactions] = useState<DbTransaction[]>(transactions);
 
+  // Filter state
   const now = new Date();
   const currentMonth = now.getMonth() + 1;
   const currentYear = now.getFullYear();
-  const isCurrentMonth = selectedMonth === currentMonth && selectedYear === currentYear;
+  const defaultFilterMonth = `${year}-${String(month).padStart(2, "0")}`;
+  const [filterMonth, setFilterMonth] = useState(defaultFilterMonth);
+  const [filterCategory, setFilterCategory] = useState("");
+  const [filterBudgetStatus, setFilterBudgetStatus] = useState<"all" | "over" | "under">("all");
 
-  async function navigateMonth(delta: number) {
-    let newMonth = selectedMonth + delta;
-    let newYear = selectedYear;
-    if (newMonth < 1) { newMonth = 12; newYear -= 1; }
-    if (newMonth > 12) { newMonth = 1; newYear += 1; }
-    if (newYear > currentYear || (newYear === currentYear && newMonth > currentMonth)) return;
+  // Derive selected transactions for the chosen month (client-side, no Supabase calls)
+  const selectedTransactions = useMemo(
+    () => allTransactions.filter((t) => t.date.startsWith(filterMonth)),
+    [allTransactions, filterMonth]
+  );
 
-    setLoadingMonth(true);
-    try {
-      const pad = (n: number) => String(n).padStart(2, "0");
-      const start = `${newYear}-${pad(newMonth)}-01`;
-      const nm = newMonth === 12 ? 1 : newMonth + 1;
-      const ny = newMonth === 12 ? newYear + 1 : newYear;
-      const end = `${ny}-${pad(nm)}-01`;
+  // Available months derived from loaded transactions + always include current month
+  const availableMonths = useMemo(() => {
+    const seen = new Set<string>();
+    for (const t of allTransactions) seen.add(t.date.slice(0, 7));
+    seen.add(`${currentYear}-${String(currentMonth).padStart(2, "0")}`);
+    return Array.from(seen).sort().reverse();
+  }, [allTransactions, currentMonth, currentYear]);
 
-      const { data, error } = await supabase
-        .from("transactions")
-        .select("*")
-        .gte("date", start)
-        .lt("date", end)
-        .order("date", { ascending: false });
+  const [filterMonthNum, filterYearNum] = filterMonth.split("-").map(Number);
+  const isCurrentMonth = filterMonthNum === currentMonth && filterYearNum === currentYear;
 
-      if (!error && data) {
-        setSelectedTransactions(data);
-        setSelectedMonth(newMonth);
-        setSelectedYear(newYear);
-      }
-    } finally {
-      setLoadingMonth(false);
-    }
+  function navigateMonth(delta: number) {
+    const [y, m] = filterMonth.split("-").map(Number);
+    let nm = m + delta, ny = y;
+    if (nm < 1) { nm = 12; ny -= 1; }
+    if (nm > 12) { nm = 1; ny += 1; }
+    if (ny > currentYear || (ny === currentYear && nm > currentMonth)) return;
+    setFilterMonth(`${ny}-${String(nm).padStart(2, "0")}`);
   }
 
   function handleBudgetSaved(saved: DbBudget) {
@@ -1030,7 +1025,10 @@ export default function BudgetsClient({
 
   function handleTxnSave(updatedTxns: DbTransaction[]) {
     setEditingTxn(null);
-    setSelectedTransactions(updatedTxns);
+    setAllTransactions((prev) => {
+      const rest = prev.filter((t) => !t.date.startsWith(filterMonth));
+      return [...rest, ...updatedTxns].sort((a, b) => b.date.localeCompare(a.date));
+    });
   }
 
   async function handleDeleteSubcategory(catId: string, subName: string, _budgetId: string | null) {
@@ -1111,6 +1109,23 @@ export default function BudgetsClient({
       };
     });
   }, [localBudgets, localCategories, selectedTransactions, deletedSubKeys]);
+
+  // Filtered category views for the budget list
+  const displayedCategoryViews = useMemo(() => {
+    let views = categoryViews;
+    if (filterCategory) {
+      views = views.filter((c) => c.id === filterCategory);
+    }
+    if (filterBudgetStatus !== "all") {
+      views = views.filter((c) => {
+        if (c.name === "Income") return false;
+        return filterBudgetStatus === "over"
+          ? c.spent > c.budgeted
+          : c.spent <= c.budgeted;
+      });
+    }
+    return views;
+  }, [categoryViews, filterCategory, filterBudgetStatus]);
 
   // Transactions with no category — shown in a dedicated Uncategorized section
   const uncategorizedTxns = useMemo(
@@ -1194,18 +1209,17 @@ export default function BudgetsClient({
             <div className="flex items-center gap-1 mt-0.5">
               <button
                 onClick={() => navigateMonth(-1)}
-                disabled={loadingMonth}
-                className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors rounded"
+                className="p-1 text-gray-400 hover:text-gray-600 transition-colors rounded"
                 aria-label="Previous month"
               >
                 ←
               </button>
               <p className="text-sm text-gray-400 w-32 text-center tabular-nums">
-                {loadingMonth ? "Loading…" : `${MONTH_NAMES[selectedMonth - 1]} ${selectedYear}`}
+                {MONTH_NAMES[filterMonthNum - 1]} {filterYearNum}
               </p>
               <button
                 onClick={() => navigateMonth(1)}
-                disabled={loadingMonth || isCurrentMonth}
+                disabled={isCurrentMonth}
                 className="p-1 text-gray-400 hover:text-gray-600 disabled:opacity-40 transition-colors rounded"
                 aria-label="Next month"
                 style={{ visibility: isCurrentMonth ? "hidden" : "visible" }}
@@ -1371,6 +1385,68 @@ export default function BudgetsClient({
           </div>
         )}
 
+        {/* Filter bar */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Month selector */}
+          <select
+            value={filterMonth}
+            onChange={(e) => setFilterMonth(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all"
+          >
+            {availableMonths.map((ym) => {
+              const [y, m] = ym.split("-").map(Number);
+              return <option key={ym} value={ym}>{MONTH_NAMES[m - 1]} {y}</option>;
+            })}
+          </select>
+
+          <div className="h-4 w-px bg-gray-200" />
+
+          {/* Category filter */}
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all"
+          >
+            <option value="">All categories</option>
+            {localCategories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+
+          <div className="h-4 w-px bg-gray-200" />
+
+          {/* Over/Under budget toggle */}
+          <div className="flex rounded-lg border border-gray-200 overflow-hidden">
+            {(["all", "over", "under"] as const).map((opt) => (
+              <button
+                key={opt}
+                onClick={() => setFilterBudgetStatus(opt)}
+                className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                  filterBudgetStatus === opt
+                    ? opt === "over"
+                      ? "bg-red-500 text-white"
+                      : opt === "under"
+                      ? "bg-emerald-500 text-white"
+                      : "bg-indigo-600 text-white"
+                    : "bg-white text-gray-600 hover:bg-gray-50"
+                }`}
+              >
+                {opt === "all" ? "All" : opt === "over" ? "Over budget" : "Under budget"}
+              </button>
+            ))}
+          </div>
+
+          {/* Clear filters */}
+          {(filterMonth !== defaultFilterMonth || filterCategory || filterBudgetStatus !== "all") && (
+            <button
+              onClick={() => { setFilterMonth(defaultFilterMonth); setFilterCategory(""); setFilterBudgetStatus("all"); }}
+              className="px-3 py-1.5 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors"
+            >
+              Clear filters
+            </button>
+          )}
+        </div>
+
         {/* Category breakdown */}
         <div className="space-y-3">
           <h2 className="text-sm font-semibold text-gray-700">Category Breakdown</h2>
@@ -1378,8 +1454,12 @@ export default function BudgetsClient({
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-10 text-center">
               <p className="text-gray-400 text-sm">No categories yet. Click "Add Category" to get started.</p>
             </div>
+          ) : displayedCategoryViews.length === 0 ? (
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-10 text-center">
+              <p className="text-gray-400 text-sm">No categories match the active filters.</p>
+            </div>
           ) : (
-            categoryViews.map((cat) => (
+            displayedCategoryViews.map((cat) => (
               <CategoryRow
                 key={cat.id}
                 cat={cat}
@@ -1413,8 +1493,8 @@ export default function BudgetsClient({
           catId={addingSubFor.catId}
           catName={addingSubFor.catName}
           catColor={addingSubFor.catColor}
-          month={selectedMonth}
-          year={selectedYear}
+          month={filterMonthNum}
+          year={filterYearNum}
           existingSubNames={existingSubNamesForCat}
           onSave={handleSubcategoryAdded}
           onClose={() => setAddingSubFor(null)}
@@ -1424,8 +1504,8 @@ export default function BudgetsClient({
       {editing && (
         <BudgetEditModal
           editing={editing}
-          month={selectedMonth}
-          year={selectedYear}
+          month={filterMonthNum}
+          year={filterYearNum}
           onSave={handleBudgetSaved}
           onClose={() => setEditing(null)}
         />
