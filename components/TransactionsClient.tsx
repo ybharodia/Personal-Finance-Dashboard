@@ -28,6 +28,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
   const [filterCategory, setFilterCategory] = useState("");
+  const [filterCategoryMode, setFilterCategoryMode] = useState<"include" | "exclude">("include");
   const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
 
   // Sync fresh server data into local state after router.refresh()
@@ -71,11 +72,15 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
     }
 
     if (filterCategory) {
-      list = list.filter((t) => t.category === filterCategory);
+      list = list.filter((t) =>
+        filterCategoryMode === "include"
+          ? t.category === filterCategory
+          : t.category !== filterCategory
+      );
     }
 
     return list;
-  }, [selectedAccount, search, dateRange, filterCategory, localTxns, accounts, categories]);
+  }, [selectedAccount, search, dateRange, filterCategory, filterCategoryMode, localTxns, accounts, categories]);
 
   // Totals always reflect the full date/account/search-filtered set, regardless of type filter
   const totalIncome    = filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
@@ -169,7 +174,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
             <div className="h-4 w-px bg-gray-200" />
             <select
               value={filterCategory}
-              onChange={(e) => setFilterCategory(e.target.value)}
+              onChange={(e) => { setFilterCategory(e.target.value); setFilterCategoryMode("include"); }}
               className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all"
             >
               <option value="">All categories</option>
@@ -177,6 +182,18 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
                 <option key={c.id} value={c.id}>{c.name}</option>
               ))}
             </select>
+            {filterCategory && (
+              <button
+                onClick={() => setFilterCategoryMode((m) => m === "include" ? "exclude" : "include")}
+                className={`px-2 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                  filterCategoryMode === "exclude"
+                    ? "bg-red-50 border-red-200 text-red-500"
+                    : "bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
+                }`}
+              >
+                {filterCategoryMode === "exclude" ? "Excluding" : "Including"}
+              </button>
+            )}
           </div>
 
           {/* Search */}
