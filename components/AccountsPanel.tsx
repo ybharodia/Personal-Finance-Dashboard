@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import { usePlaidLink } from "react-plaid-link";
 import { useRouter } from "next/navigation";
 import { formatCurrency, accountDisplayName } from "@/lib/data";
-import type { DbAccount } from "@/lib/database.types";
+import type { DbAccount, DbPlaidItem } from "@/lib/database.types";
 
 // Banks that should appear first, in this order. Any Plaid-connected
 // institutions not in this list appear below in alphabetical order.
@@ -22,6 +22,7 @@ type Props = {
   accounts: DbAccount[];
   selectedAccount: string | null;
   onSelect: (id: string | null) => void;
+  plaidItems?: DbPlaidItem[];
 };
 
 function typeLabel(type: DbAccount["type"]) {
@@ -168,13 +169,41 @@ function ConnectButton({ onStatusChange }: ConnectButtonProps) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function AccountsPanel({ accounts, selectedAccount, onSelect }: Props) {
+export default function AccountsPanel({ accounts, selectedAccount, onSelect, plaidItems = [] }: Props) {
   const router = useRouter();
-  const [connectError, setConnectError] = useState<string | null>(null);
-  const [renamingId, setRenamingId]     = useState<string | null>(null);
-  const [renameValue, setRenameValue]   = useState("");
-  const [renameSaving, setRenameSaving] = useState(false);
+  const [connectError, setConnectError]         = useState<string | null>(null);
+  const [renamingId, setRenamingId]             = useState<string | null>(null);
+  const [renameValue, setRenameValue]           = useState("");
+  const [renameSaving, setRenameSaving]         = useState(false);
+  const [disconnectBank, setDisconnectBank]     = useState<string | null>(null);
+  const [disconnectLoading, setDisconnectLoading] = useState(false);
   const renameInputRef = useRef<HTMLInputElement>(null);
+
+  // Build a map of institution_name → item_id for quick lookup
+  const itemByBank = new Map(plaidItems.map((p) => [p.institution_name, p.item_id]));
+
+  async function handleDisconnect(bank: string) {
+    const itemId = itemByBank.get(bank);
+    if (!itemId) return;
+    setDisconnectLoading(true);
+    try {
+      const res = await fetch("/api/plaid/remove", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Disconnect failed");
+      }
+      setDisconnectBank(null);
+      router.refresh();
+    } catch (err: any) {
+      setConnectError(err.message ?? "Disconnect failed");
+    } finally {
+      setDisconnectLoading(false);
+    }
+  }
 
   // Focus the input when rename mode opens
   useEffect(() => {
@@ -249,12 +278,50 @@ export default function AccountsPanel({ accounts, selectedAccount, onSelect }: P
           const bankTotal = bankAccounts.reduce((s, a) => s + a.balance, 0);
           return (
             <div key={bank}>
-              <div className="flex items-center justify-between px-1 mb-1">
-                <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 truncate max-w-[120px]">
-                  {bank}
-                </span>
-                <span className="text-xs text-gray-400 tabular-nums">{formatCurrency(bankTotal)}</span>
-              </div>
+              {disconnectBank === bank ? (
+                /* ── Disconnect confirmation ── */
+                <div className="px-1 mb-1 py-1.5 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-xs text-red-700 font-medium mb-1.5 px-0.5">
+                    Remove {bank}? All transactions will be deleted.
+                  </p>
+                  <div className="flex gap-1.5">
+                    <button
+                      onClick={() => handleDisconnect(bank)}
+                      disabled={disconnectLoading}
+                      className="flex-1 text-xs font-semibold bg-red-600 text-white rounded px-2 py-1 hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {disconnectLoading ? "Removing…" : "Disconnect"}
+                    </button>
+                    <button
+                      onClick={() => setDisconnectBank(null)}
+                      disabled={disconnectLoading}
+                      className="flex-1 text-xs font-medium text-gray-500 bg-white border border-gray-200 rounded px-2 py-1 hover:bg-gray-50"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between px-1 mb-1 group/bank">
+                  <span className="text-xs font-semibold uppercase tracking-wider text-gray-400 truncate max-w-[120px]">
+                    {bank}
+                  </span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs text-gray-400 tabular-nums">{formatCurrency(bankTotal)}</span>
+                    {itemByBank.has(bank) && (
+                      <button
+                        onClick={() => setDisconnectBank(bank)}
+                        title={`Disconnect ${bank}`}
+                        className="opacity-0 group-hover/bank:opacity-100 transition-opacity text-gray-300 hover:text-red-500 p-0.5 rounded"
+                      >
+                        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="space-y-0.5">
                 {bankAccounts.map((acct) => (
                   <div key={acct.id}>

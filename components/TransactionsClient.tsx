@@ -9,20 +9,21 @@ import AddTransactionModal from "@/components/AddTransactionModal";
 import { getCategoryMeta, formatCurrency } from "@/lib/data";
 import { exportToExcel } from "@/lib/exportToExcel";
 import type { CategoryMeta } from "@/lib/data";
-import type { DbAccount, DbTransaction, DbBudget } from "@/lib/database.types";
+import type { DbAccount, DbTransaction, DbBudget, DbPlaidItem } from "@/lib/database.types";
 
 type Props = {
   accounts: DbAccount[];
   transactions: DbTransaction[];
   budgets: DbBudget[];
   categories: CategoryMeta[];
+  plaidItems?: DbPlaidItem[];
 };
 
 function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function TransactionsClient({ accounts, transactions, budgets, categories }: Props) {
+export default function TransactionsClient({ accounts, transactions, budgets, categories, plaidItems }: Props) {
   const router = useRouter();
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -106,7 +107,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
 
   return (
     <div className="flex h-full">
-      <AccountsPanel accounts={accounts} selectedAccount={selectedAccount} onSelect={setSelectedAccount} />
+      <AccountsPanel accounts={accounts} selectedAccount={selectedAccount} onSelect={setSelectedAccount} plaidItems={plaidItems} />
 
       <div className="flex-1 overflow-y-auto bg-gray-50">
         <div className="p-4 md:p-6 space-y-4 md:space-y-5">

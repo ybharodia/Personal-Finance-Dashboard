@@ -1,5 +1,5 @@
 import { supabase, createAdminClient } from "./supabase";
-import type { DbAccount, DbTransaction, DbBudget, DbRecurringOverride, DbMerchantRule } from "./database.types";
+import type { DbAccount, DbTransaction, DbBudget, DbRecurringOverride, DbMerchantRule, DbPlaidItem } from "./database.types";
 import type { CategoryMeta } from "./data";
 import { merchantRuleKey } from "./recurring";
 
@@ -131,6 +131,15 @@ export async function getMerchantRules(): Promise<DbMerchantRule[]> {
   console.log("[getMerchantRules] first 5 keys:", sample.map((r) => `${r.merchant_key} → ${r.subcategory}`));
 
   return Array.from(merged.values());
+}
+
+export async function getPlaidItems(): Promise<DbPlaidItem[]> {
+  const db = createAdminClient();
+  const { data, error } = await db
+    .from("plaid_items")
+    .select("id, item_id, institution_name, cursor, created_at, access_token");
+  if (error) throw new Error(`getPlaidItems: ${error.message}`);
+  return data ?? [];
 }
 
 export async function getRecurringOverrides(): Promise<DbRecurringOverride[]> {
