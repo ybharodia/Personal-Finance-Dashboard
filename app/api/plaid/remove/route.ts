@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 
 export async function POST(req: NextRequest) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   try {
     const db = createAdminClient();
     const { itemId } = await req.json();

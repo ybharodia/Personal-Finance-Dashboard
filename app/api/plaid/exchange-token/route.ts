@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 import type { AccountType, AccountSubtype } from "plaid";
 
 function mapAccountType(
@@ -14,6 +15,9 @@ function mapAccountType(
 }
 
 export async function POST(req: NextRequest) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   try {
     // Keep createAdminClient() inside try so a missing SUPABASE_SERVICE_ROLE_KEY
     // env var is caught here and returned as JSON rather than crashing the route

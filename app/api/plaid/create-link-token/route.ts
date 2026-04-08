@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
 import { Products, CountryCode } from "plaid";
+import { requireAuth } from "@/lib/auth";
 
 export async function POST() {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   try {
     const response = await plaidClient.linkTokenCreate({
       user: { client_user_id: "finance-dashboard-user" },

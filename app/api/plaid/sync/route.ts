@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { plaidClient } from "@/lib/plaid";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 import { merchantRuleKey } from "@/lib/recurring";
 import type { Transaction, RemovedTransaction, AccountType, AccountSubtype } from "plaid";
 
@@ -120,6 +121,9 @@ function plaidErrorDetail(err: any) {
 // ── Route handler ─────────────────────────────────────────────────────────────
 
 export async function POST() {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   // Use admin client (service-role key) so RLS doesn't block reads/writes
   const db = createAdminClient();
 

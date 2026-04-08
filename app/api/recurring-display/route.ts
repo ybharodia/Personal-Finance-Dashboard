@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 import { normalizeMerchantName } from "@/lib/recurring";
 
 const VALID_ACCOUNT_TYPES = ["checking_savings", "credit_card"] as const;
@@ -25,6 +26,9 @@ function addDays(dateStr: string, n: number): string {
 // Returns display data for all is_recurring=true rules for the given account type,
 // enriched with avg_amount and next_date derived from real transactions.
 export async function GET(request: Request) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   const { searchParams } = new URL(request.url);
   const account_type = searchParams.get("account_type");
 

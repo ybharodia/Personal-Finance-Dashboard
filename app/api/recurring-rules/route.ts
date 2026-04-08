@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 import { normalizeMerchantName } from "@/lib/recurring";
 
 const VALID_ACCOUNT_TYPES = ["checking_savings", "credit_card"] as const;
@@ -11,6 +12,9 @@ function isValidAccountType(v: unknown): v is AccountType {
 
 // GET /api/recurring-rules?account_type=checking_savings|credit_card
 export async function GET(request: Request) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   const { searchParams } = new URL(request.url);
   const account_type = searchParams.get("account_type");
 
@@ -31,6 +35,9 @@ export async function GET(request: Request) {
 // POST /api/recurring-rules
 // Body: { merchant_key, account_type, is_recurring, frequency, transaction_type }
 export async function POST(request: Request) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   try {
     const body = await request.json() as {
       merchant_key: string;

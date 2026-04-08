@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 import type { RecurringAccountType } from "@/lib/database.types";
 import { normalizeMerchantName } from "@/lib/recurring";
 
@@ -14,6 +15,9 @@ function isValidAccountType(v: unknown): v is RecurringAccountType {
 // Returns unique merchants from transactions belonging to matching accounts,
 // excluding internal transfers, sorted alphabetically.
 export async function GET(request: Request) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   const { searchParams } = new URL(request.url);
   const account_type = searchParams.get("account_type");
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 
 const LIQUID_GROUPS = ["checking", "savings", "business_checking", "investment"];
 const HISTORY_DAYS = 60;
@@ -17,6 +18,9 @@ function addDays(d: Date, days: number): Date {
 }
 
 export async function GET() {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   try {
     const db = createAdminClient();
 

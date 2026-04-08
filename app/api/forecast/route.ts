@@ -1,6 +1,7 @@
 // app/api/forecast/route.ts
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 import { normalizeMerchantName } from "@/lib/recurring";
 
 const FORECAST_DAYS = 30;
@@ -62,6 +63,9 @@ export type ForecastPayload = {
 };
 
 export async function GET() {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   try {
     const db = createAdminClient();
     const today = new Date();

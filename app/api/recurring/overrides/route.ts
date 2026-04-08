@@ -1,11 +1,15 @@
 import { NextResponse } from "next/server";
 import { createAdminClient } from "@/lib/supabase";
+import { requireAuth } from "@/lib/auth";
 
 // POST /api/recurring/overrides
 // Body: { merchant_key: string; is_recurring: boolean }
 // Upserts an override row. Calling with is_recurring=false excludes the merchant;
 // calling with is_recurring=true force-includes it.
 export async function POST(request: Request) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   console.log("[recurring/overrides] POST called");
   try {
     const { merchant_key, is_recurring } = await request.json() as {
@@ -40,6 +44,9 @@ export async function POST(request: Request) {
 // Body: { merchant_key: string }
 // Removes the override entirely (goes back to auto-detection).
 export async function DELETE(request: Request) {
+  const authResult = await requireAuth();
+  if (authResult instanceof NextResponse) return authResult;
+
   console.log("[recurring/overrides] DELETE called");
   try {
     const { merchant_key } = await request.json() as { merchant_key: string };
