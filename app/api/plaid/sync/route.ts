@@ -261,6 +261,7 @@ export async function POST() {
         const accountRows = accountsRes.data.accounts.map((a) => ({
           id: a.account_id,
           plaid_account_id: a.account_id,
+          plaid_item_id: item.item_id,
           bank_name: item.institution_name ?? "",
           name: a.name,
           type: mapAccountType(a.type, a.subtype ?? null),
@@ -280,7 +281,7 @@ export async function POST() {
             const { data: existing } = await db
               .from("accounts")
               .select("id, plaid_account_id")
-              .eq("bank_name", item.institution_name ?? "");
+              .eq("plaid_item_id", item.item_id);
             const staleIds = (existing ?? [])
               .filter((a) => !newPlaidIds.has(a.plaid_account_id))
               .map((a) => a.id);
