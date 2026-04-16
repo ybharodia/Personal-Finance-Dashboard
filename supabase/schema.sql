@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS accounts (
 CREATE TABLE IF NOT EXISTS transactions (
   id          TEXT PRIMARY KEY,
   date        DATE        NOT NULL,
-  account_id  TEXT        NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+  account_id  TEXT        REFERENCES accounts(id) ON DELETE SET NULL,
   description TEXT        NOT NULL,
   category    TEXT        NOT NULL,
   subcategory      TEXT        NOT NULL DEFAULT '',
