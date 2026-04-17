@@ -175,18 +175,18 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
           </div>
         </div>
 
-        {/* Row 3 — 30-Day Forecast + Recent Transactions */}
-        <div className="flex gap-4">
-          <div className="flex-1 min-h-[220px]">
-            <CashFlowForecast />
-          </div>
-          <div className="flex-1 min-h-[220px]">
-            <RecentTransactions
-              transactions={localTxns}
-              budgets={budgets}
-              categories={categories}
-            />
-          </div>
+        {/* Row 3 — 30-Day Forecast */}
+        <div className="min-h-[220px]">
+          <CashFlowForecast />
+        </div>
+
+        {/* Row 4 — Recent Transactions */}
+        <div className="min-h-[220px]">
+          <RecentTransactions
+            transactions={localTxns}
+            budgets={budgets}
+            categories={categories}
+          />
         </div>
       </div>
     </div>
