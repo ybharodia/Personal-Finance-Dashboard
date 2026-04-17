@@ -176,7 +176,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
         </div>
 
         {/* Row 3 — 30-Day Forecast */}
-        <div className="min-h-[220px]">
+        <div className="h-[320px]">
           <CashFlowForecast />
         </div>
 
