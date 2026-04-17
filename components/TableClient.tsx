@@ -94,12 +94,18 @@ export default function TableClient({
 
   // ── Data processing ──────────────────────────────────────────────────────────
 
-  // Collect category IDs that have income-type transactions — these must be
-  // excluded from expense sections to prevent income appearing twice.
+  // Collect category IDs that are exclusively income — no expense transactions.
+  // A category with mixed types (e.g. refunds alongside expenses) stays in the
+  // expense section; only pure income categories are excluded from it.
   const incomeCategoryIds = useMemo(() => {
-    const ids = new Set<string>();
+    const typesByCat = new Map<string, Set<string>>();
     for (const t of transactions) {
-      if (t.type === "income") ids.add(t.category);
+      if (!typesByCat.has(t.category)) typesByCat.set(t.category, new Set());
+      typesByCat.get(t.category)!.add(t.type);
+    }
+    const ids = new Set<string>();
+    for (const [cat, types] of typesByCat) {
+      if (types.has("income") && !types.has("expense")) ids.add(cat);
     }
     return ids;
   }, [transactions]);
