@@ -55,6 +55,10 @@ export async function GET() {
     }
 
     const todayTotal = (accounts ?? []).reduce((s, a) => s + Number(a.balance), 0);
+    console.log("[balances/history] DEBUG accounts fetched:", accounts?.length ?? 0, "| todayTotal:", todayTotal);
+    (accounts ?? []).forEach((a) => console.log("  account_group=" + a.account_group + " balance=" + a.balance));
+    const storedToday = (stored ?? []).find((r) => r.date === toStr);
+    console.log("[balances/history] DEBUG stored row for today (" + toStr + "):", storedToday ? JSON.stringify(storedToday) : "NONE");
 
     // Group transactions by date
     const byDate = new Map<string, { income: number; expenses: number }>();
