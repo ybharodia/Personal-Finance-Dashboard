@@ -41,6 +41,20 @@ function formatRangeLabel(range: DateRange): string {
   return `${fmt(from)}, ${from.getFullYear()} – ${fmt(lastDay)}, ${lastDay.getFullYear()}`;
 }
 
+const ghostBtn: React.CSSProperties = {
+  border: "1px solid var(--fo-hair)",
+  background: "var(--fo-card)",
+  color: "var(--fo-ink)",
+  borderRadius: 7,
+  padding: "7px 13px",
+  fontSize: 12,
+  fontFamily: "var(--font-fo-sans)",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+};
+
 export default function DashboardClient({ accounts, transactions, budgets, categories }: Props) {
   const router = useRouter();
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
@@ -90,34 +104,35 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
   );
   const cashFlow = totalIncome - totalExpenses;
 
+  const syncBtnStyle: React.CSSProperties =
+    syncStatus === "success"
+      ? { ...ghostBtn, background: "var(--fo-good-soft)", color: "var(--fo-good)", border: "1px solid var(--fo-good-soft)" }
+      : syncStatus === "error"
+      ? { ...ghostBtn, background: "var(--fo-bad-soft)", color: "var(--fo-bad)", border: "1px solid var(--fo-bad-soft)" }
+      : syncStatus === "syncing"
+      ? { ...ghostBtn, opacity: 0.5, cursor: "not-allowed" }
+      : ghostBtn;
+
   return (
-    <div className="flex-1 overflow-y-auto bg-gray-50">
+    <div className="flex-1 overflow-y-auto bg-fo-bg">
       <div className="p-4 md:p-6 space-y-4 md:space-y-6">
-        {/* Header */}
-        <div className="flex items-start justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-sm text-gray-400 mt-0.5">{formatRangeLabel(dateRange)}</p>
-          </div>
-          <div className="flex items-center gap-2 mt-0.5">
+
+        {/* Header — date label + action buttons */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <p style={{ fontSize: 13, color: "var(--fo-faint)", fontFamily: "var(--font-fo-sans)" }}>
+            {formatRangeLabel(dateRange)}
+          </p>
+          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
             <DownloadBalancesButton accounts={accounts} />
-            <div className="flex flex-col items-end gap-1">
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
               <button
                 onClick={handleSync}
                 disabled={syncStatus === "syncing"}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${
-                  syncStatus === "success"
-                    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                    : syncStatus === "error"
-                    ? "bg-red-50 text-red-600 border-red-200"
-                    : syncStatus === "syncing"
-                    ? "bg-gray-50 text-gray-400 border-gray-200 cursor-not-allowed"
-                    : "bg-white text-gray-600 border-gray-200 hover:bg-gray-50 hover:text-gray-900"
-                }`}
+                style={syncBtnStyle}
               >
                 {syncStatus === "syncing" ? (
                   <>
-                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <svg width="14" height="14" className="animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
                     </svg>
@@ -125,14 +140,14 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
                   </>
                 ) : syncStatus === "success" ? (
                   <>
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                     </svg>
                     Synced!
                   </>
                 ) : (
                   <>
-                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <svg width="14" height="14" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                       <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                     </svg>
                     Sync
@@ -140,7 +155,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
                 )}
               </button>
               {syncStatus === "error" && syncError && (
-                <p className="text-xs text-red-500 max-w-[160px] text-right">{syncError}</p>
+                <p style={{ fontSize: 11, color: "var(--fo-bad)", maxWidth: 160, textAlign: "right" }}>{syncError}</p>
               )}
             </div>
           </div>
@@ -149,17 +164,56 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
         {/* Date range filter */}
         <DateRangeFilter value={dateRange} onChange={setDateRange} />
 
-        {/* Row 1 — Stat cards */}
+        {/* Stat cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           {[
-            { label: "Total Income", value: totalIncome, color: "text-emerald-600", bg: "bg-emerald-50", border: "border-emerald-100" },
-            { label: "Total Expenses", value: totalExpenses, color: "text-red-500", bg: "bg-red-50", border: "border-red-100" },
-            { label: "Cash Flow", value: cashFlow, color: cashFlow >= 0 ? "text-emerald-600" : "text-red-500", bg: cashFlow >= 0 ? "bg-emerald-50" : "bg-red-50", border: cashFlow >= 0 ? "border-emerald-100" : "border-red-100" },
-          ].map(({ label, value, color, bg, border }) => (
-            <div key={label} className={`${bg} border ${border} rounded-xl px-5 py-4`}>
-              <p className="text-xs font-semibold uppercase tracking-wider text-gray-400 mb-1">{label}</p>
-              <p className={`text-2xl font-bold tabular-nums ${color}`}>
-                {label === "Total Expenses" ? `-${formatCurrency(value)}` : formatCurrency(value)}
+            {
+              label: "Total Income",
+              value: formatCurrency(totalIncome),
+              valueColor: "var(--fo-good)",
+            },
+            {
+              label: "Total Expenses",
+              value: `-${formatCurrency(totalExpenses)}`,
+              valueColor: "var(--fo-bad)",
+            },
+            {
+              label: "Cash Flow",
+              value: formatCurrency(cashFlow),
+              valueColor: cashFlow >= 0 ? "var(--fo-ink)" : "var(--fo-bad)",
+            },
+          ].map(({ label, value, valueColor }) => (
+            <div
+              key={label}
+              style={{
+                background: "var(--fo-card)",
+                border: "1px solid var(--fo-hair)",
+                borderRadius: 10,
+                padding: "18px 22px",
+              }}
+            >
+              <p
+                style={{
+                  fontSize: 10,
+                  color: "var(--fo-muted)",
+                  letterSpacing: "1.3px",
+                  textTransform: "uppercase",
+                  fontFamily: "var(--font-fo-sans)",
+                  marginBottom: 8,
+                }}
+              >
+                {label}
+              </p>
+              <p
+                className="num"
+                style={{
+                  fontFamily: "var(--font-fo-serif)",
+                  fontSize: 30,
+                  fontWeight: 500,
+                  color: valueColor,
+                }}
+              >
+                {value}
               </p>
             </div>
           ))}
@@ -188,6 +242,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
             categories={categories}
           />
         </div>
+
       </div>
     </div>
   );
