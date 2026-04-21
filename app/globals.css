@@ -1,4 +1,53 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;450;500;600&family=Fraunces:wght@400;450;500&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+@theme {
+  /* Colors */
+  --color-fo-bg: #faf8f4;
+  --color-fo-card: #ffffff;
+  --color-fo-ink: #1a1715;
+  --color-fo-muted: #6b635b;
+  --color-fo-faint: #a39a8f;
+  --color-fo-hair: #ebe5dc;
+  --color-fo-soft: #f3efe7;
+  --color-fo-accent: oklch(0.45 0.12 35);
+  --color-fo-accent-soft: oklch(0.93 0.04 35);
+  --color-fo-accent-paper: oklch(0.97 0.02 35);
+  --color-fo-good: oklch(0.52 0.09 150);
+  --color-fo-good-soft: oklch(0.95 0.04 150);
+  --color-fo-bad: oklch(0.52 0.13 25);
+  --color-fo-bad-soft: oklch(0.95 0.03 25);
+  --color-fo-warn: oklch(0.62 0.12 70);
+  --color-fo-warn-soft: oklch(0.96 0.05 80);
+
+  /* Font families */
+  --font-fo-sans: 'Inter', -apple-system, system-ui, sans-serif;
+  --font-fo-serif: 'Fraunces', 'Iowan Old Style', Georgia, serif;
+  --font-fo-mono: 'JetBrains Mono', ui-monospace, Menlo, monospace;
+}
+
+:root {
+  --fo-bg: #faf8f4;
+  --fo-card: #ffffff;
+  --fo-ink: #1a1715;
+  --fo-muted: #6b635b;
+  --fo-faint: #a39a8f;
+  --fo-hair: #ebe5dc;
+  --fo-soft: #f3efe7;
+  --fo-accent: oklch(0.45 0.12 35);
+  --fo-accent-soft: oklch(0.93 0.04 35);
+  --fo-accent-paper: oklch(0.97 0.02 35);
+  --fo-good: oklch(0.52 0.09 150);
+  --fo-good-soft: oklch(0.95 0.04 150);
+  --fo-bad: oklch(0.52 0.13 25);
+  --fo-bad-soft: oklch(0.95 0.03 25);
+  --fo-warn: oklch(0.62 0.12 70);
+  --fo-warn-soft: oklch(0.96 0.05 80);
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
 
 body {
   font-family: 'DM Sans', Arial, sans-serif;
