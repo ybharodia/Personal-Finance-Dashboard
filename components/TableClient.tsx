@@ -15,6 +15,9 @@ const MONTHS_SHORT = [
 
 const START_YEAR = 2023;
 
+const MONO = "'JetBrains Mono', ui-monospace, Menlo, monospace";
+const SANS = "'Inter', -apple-system, system-ui, sans-serif";
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 type Props = {
@@ -266,79 +269,205 @@ export default function TableClient({
 
   // ── Cell renderers ───────────────────────────────────────────────────────────
 
-  function ExpenseCell({ amount, monthIdx, bold = false }: { amount: number; monthIdx: number; bold?: boolean }) {
+  function ExpenseCell({
+    amount,
+    monthIdx,
+    bold = false,
+    rowBg = "transparent",
+  }: {
+    amount: number;
+    monthIdx: number;
+    bold?: boolean;
+    rowBg?: string;
+  }) {
     const future = isFutureMonth(monthIdx);
     const current = isCurrentMonthCol(monthIdx);
-    const base = `px-3 py-2 text-right tabular-nums${current ? " bg-blue-50" : ""}${bold ? " font-semibold" : ""}`;
+    const cellStyle: React.CSSProperties = {
+      background: current ? "oklch(0.97 0.02 35)" : rowBg,
+      textAlign: "right",
+      fontFamily: MONO,
+      fontVariantNumeric: "tabular-nums",
+      fontSize: 11.5,
+      padding: bold ? "10px 8px" : "8px 8px",
+      fontWeight: bold ? 700 : 400,
+      borderBottom: "1px solid #ebe5dc",
+      ...(bold ? { borderTop: "1px solid #ebe5dc" } : {}),
+    };
     if (future && amount === 0) {
-      return <td className={`${base} text-gray-300`}>—</td>;
+      return <td style={{ ...cellStyle, color: "#a39a8f" }}>—</td>;
     }
     return (
-      <td className={`${base} text-gray-700`}>
-        {amount > 0 ? fmtDollars(amount) : <span className="text-gray-300">—</span>}
-      </td>
-    );
-  }
-
-  function IncomeCell({ amount, monthIdx }: { amount: number; monthIdx: number }) {
-    const future = isFutureMonth(monthIdx);
-    const current = isCurrentMonthCol(monthIdx);
-    const base = `px-3 py-2 text-right tabular-nums${current ? " bg-blue-50" : ""}`;
-    if (future && amount === 0) {
-      return <td className={`${base} text-gray-300`}>—</td>;
-    }
-    return (
-      <td className={`${base} ${amount > 0 ? "text-green-600" : "text-gray-300"}`}>
+      <td style={{ ...cellStyle, color: amount > 0 ? "#1a1715" : "#a39a8f" }}>
         {amount > 0 ? fmtDollars(amount) : "—"}
       </td>
     );
   }
 
-  // Section header row — dark slate band; first cell is sticky so the label
-  // stays pinned when scrolling right while the empty cells behind it scroll away.
-  function SectionHeaderRow({ label }: { label: string }) {
+  function IncomeCell({
+    amount,
+    monthIdx,
+    bold = false,
+    rowBg = "transparent",
+  }: {
+    amount: number;
+    monthIdx: number;
+    bold?: boolean;
+    rowBg?: string;
+  }) {
+    const future = isFutureMonth(monthIdx);
+    const current = isCurrentMonthCol(monthIdx);
+    const cellStyle: React.CSSProperties = {
+      background: current ? "oklch(0.97 0.02 35)" : rowBg,
+      textAlign: "right",
+      fontFamily: MONO,
+      fontVariantNumeric: "tabular-nums",
+      fontSize: 11.5,
+      padding: bold ? "10px 8px" : "8px 8px",
+      fontWeight: bold ? 700 : 400,
+      borderBottom: "1px solid #ebe5dc",
+      ...(bold ? { borderTop: "1px solid #ebe5dc" } : {}),
+    };
+    if (future && amount === 0) {
+      return <td style={{ ...cellStyle, color: "#a39a8f" }}>—</td>;
+    }
+    return (
+      <td style={{ ...cellStyle, color: amount > 0 ? "oklch(0.52 0.09 150)" : "#a39a8f" }}>
+        {amount > 0 ? fmtDollars(amount) : "—"}
+      </td>
+    );
+  }
+
+  // Section header row — first cell is sticky so the label stays pinned when scrolling right.
+  function SectionHeaderRow({ label, isIncome = false }: { label: string; isIncome?: boolean }) {
+    const bgColor = isIncome ? "oklch(0.95 0.04 150)" : "#f3efe7";
+    const textColor = isIncome ? "oklch(0.52 0.09 150)" : "#1a1715";
+    const borderStyle = "1px solid #ebe5dc";
     return (
       <tr>
-        <td className="sticky left-0 z-10 bg-slate-800 text-white px-4 py-2.5 font-bold text-[11px] uppercase tracking-widest whitespace-nowrap">
+        <td
+          className="sticky left-0 z-10 whitespace-nowrap"
+          style={{
+            background: bgColor,
+            color: textColor,
+            fontSize: 11,
+            letterSpacing: "1.4px",
+            textTransform: "uppercase",
+            fontWeight: 700,
+            padding: "10px 12px",
+            borderTop: borderStyle,
+            borderBottom: borderStyle,
+            fontFamily: SANS,
+          }}
+        >
           {label}
         </td>
-        <td className="bg-slate-800" />
+        <td style={{ background: bgColor, borderTop: borderStyle, borderBottom: borderStyle }} />
         {MONTHS_SHORT.map((_, i) => (
-          <td key={i} className={isCurrentMonthCol(i) ? "bg-slate-700" : "bg-slate-800"} />
+          <td
+            key={i}
+            style={{
+              background: isCurrentMonthCol(i) ? "oklch(0.97 0.02 35)" : bgColor,
+              borderTop: borderStyle,
+              borderBottom: borderStyle,
+            }}
+          />
         ))}
-        <td className="bg-slate-800" />
-        <td className="bg-slate-800" />
-        <td className="bg-slate-800" />
+        <td style={{ background: bgColor, borderTop: borderStyle, borderBottom: borderStyle }} />
+        <td style={{ background: bgColor, borderTop: borderStyle, borderBottom: borderStyle }} />
+        <td style={{ background: bgColor, borderTop: borderStyle, borderBottom: borderStyle }} />
       </tr>
     );
   }
 
   function CategoryTotalRow({ section }: { section: Section }) {
+    const borderStyle = "1px solid #ebe5dc";
     return (
-      <tr className="bg-gray-100">
-        <td className="sticky left-0 z-10 bg-gray-100 px-4 py-2 pl-4 text-gray-800 font-semibold border-r border-gray-200 whitespace-nowrap text-[13px]">
+      <tr>
+        <td
+          className="sticky left-0 z-10 whitespace-nowrap"
+          style={{
+            background: "#ffffff",
+            color: "#1a1715",
+            fontSize: 11.5,
+            padding: "10px 12px",
+            fontFamily: SANS,
+            fontWeight: 700,
+            borderTop: borderStyle,
+            borderBottom: borderStyle,
+          }}
+        >
           {section.name} Total
         </td>
-        <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-600">
-          {section.catBudget > 0 ? fmtDollars(section.catBudget) : <span className="text-gray-300">—</span>}
+        <td
+          style={{
+            color: section.catBudget > 0 ? "#6b635b" : "#a39a8f",
+            textAlign: "right",
+            fontFamily: MONO,
+            fontVariantNumeric: "tabular-nums",
+            fontSize: 11.5,
+            padding: "10px 8px",
+            fontWeight: 700,
+            background: "#ffffff",
+            borderTop: borderStyle,
+            borderBottom: borderStyle,
+          }}
+        >
+          {section.catBudget > 0 ? fmtDollars(section.catBudget) : "—"}
         </td>
         {section.catMonthly.map((amt, i) => (
-          <ExpenseCell key={i} amount={amt} monthIdx={i} bold />
+          <ExpenseCell key={i} amount={amt} monthIdx={i} bold rowBg="#ffffff" />
         ))}
-        <td className="px-3 py-2 text-right tabular-nums font-semibold text-gray-800 border-l border-gray-200">
-          {section.catAnnualTotal > 0 ? fmtDollars(section.catAnnualTotal) : <span className="text-gray-300">—</span>}
-        </td>
-        <td className="px-3 py-2 text-right tabular-nums font-semibold text-blue-600">
-          {section.catAnnualBudget > 0 ? fmtDollars(section.catAnnualBudget) : <span className="text-gray-300">—</span>}
+        <td
+          style={{
+            textAlign: "right",
+            fontFamily: MONO,
+            fontVariantNumeric: "tabular-nums",
+            fontSize: 11.5,
+            padding: "10px 8px",
+            fontWeight: 700,
+            color: section.catAnnualTotal > 0 ? "#1a1715" : "#a39a8f",
+            background: "#ffffff",
+            borderTop: borderStyle,
+            borderBottom: borderStyle,
+            borderLeft: borderStyle,
+          }}
+        >
+          {section.catAnnualTotal > 0 ? fmtDollars(section.catAnnualTotal) : "—"}
         </td>
         <td
-          className={`px-3 py-2 text-right tabular-nums font-semibold ${
-            section.catAnnualBudget === 0
-              ? "text-gray-300"
-              : section.catVariance >= 0
-              ? "text-green-600"
-              : "text-red-500"
-          }`}
+          style={{
+            color: section.catAnnualBudget > 0 ? "#6b635b" : "#a39a8f",
+            textAlign: "right",
+            fontFamily: MONO,
+            fontVariantNumeric: "tabular-nums",
+            fontSize: 11.5,
+            padding: "10px 8px",
+            fontWeight: 700,
+            background: "#ffffff",
+            borderTop: borderStyle,
+            borderBottom: borderStyle,
+          }}
+        >
+          {section.catAnnualBudget > 0 ? fmtDollars(section.catAnnualBudget) : "—"}
+        </td>
+        <td
+          style={{
+            textAlign: "right",
+            fontFamily: MONO,
+            fontVariantNumeric: "tabular-nums",
+            fontSize: 11.5,
+            padding: "10px 8px",
+            fontWeight: 700,
+            color:
+              section.catAnnualBudget === 0
+                ? "#a39a8f"
+                : section.catVariance >= 0
+                ? "oklch(0.52 0.09 150)"
+                : "oklch(0.52 0.13 25)",
+            background: "#ffffff",
+            borderTop: borderStyle,
+            borderBottom: borderStyle,
+          }}
         >
           {section.catAnnualBudget === 0 ? "—" : fmtDollars(section.catVariance)}
         </td>
@@ -349,12 +478,29 @@ export default function TableClient({
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="flex flex-col h-full overflow-hidden">
+    <div
+      className="flex flex-col h-full overflow-hidden"
+      style={{ background: "#faf8f4", fontFamily: SANS }}
+    >
       {/* Page header */}
-      <div className="px-6 py-5 bg-white border-b border-gray-200 shrink-0 flex items-center justify-between">
+      <div
+        className="px-6 py-5 shrink-0 flex items-center justify-between"
+        style={{ background: "#ffffff", borderBottom: "1px solid #ebe5dc" }}
+      >
         <div>
-          <h1 className="text-xl font-semibold text-gray-900">Income Statement</h1>
-          <p className="text-sm text-gray-500 mt-0.5">
+          <h1
+            style={{
+              fontFamily: "Georgia, 'Times New Roman', serif",
+              fontSize: 26,
+              fontWeight: 500,
+              letterSpacing: "-0.5px",
+              color: "#1a1715",
+              margin: 0,
+            }}
+          >
+            Income Statement
+          </h1>
+          <p style={{ fontSize: 11.5, color: "#6b635b", marginTop: 4, marginBottom: 0 }}>
             Monthly actuals vs budget · {selectedYear}
           </p>
         </div>
@@ -379,7 +525,19 @@ export default function TableClient({
             }
             exportToExcel(rows, "income-statement", "Income Statement");
           }}
-          className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: 6,
+            border: "1px solid #ebe5dc",
+            background: "#ffffff",
+            color: "#1a1715",
+            padding: "8px 13px",
+            borderRadius: 7,
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: "pointer",
+          }}
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
@@ -389,18 +547,59 @@ export default function TableClient({
       </div>
 
       {/* Year selector */}
-      <div className="px-6 py-3 bg-white border-b border-gray-100 shrink-0 flex items-center gap-3">
-        <span className="text-[11px] font-semibold uppercase tracking-widest text-gray-400">Year</span>
-        <div className="flex gap-1.5">
+      <div
+        className="px-6 py-3 shrink-0 flex items-center gap-3"
+        style={{ background: "#faf8f4", borderBottom: "1px solid #ebe5dc" }}
+      >
+        <span
+          style={{
+            fontSize: 10,
+            letterSpacing: "1.4px",
+            textTransform: "uppercase",
+            color: "#6b635b",
+            fontWeight: 600,
+          }}
+        >
+          Year
+        </span>
+        <div
+          style={{
+            background: "#f3efe7",
+            padding: 3,
+            borderRadius: 16,
+            display: "inline-flex",
+            gap: 4,
+          }}
+        >
           {years.map((y) => (
             <button
               key={y}
               onClick={() => router.push(`/table?year=${y}`)}
-              className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              style={
                 y === selectedYear
-                  ? "bg-indigo-600 text-white shadow-sm"
-                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-              }`}
+                  ? {
+                      background: "oklch(0.45 0.12 35)",
+                      color: "#ffffff",
+                      border: "none",
+                      padding: "4px 12px",
+                      borderRadius: 12,
+                      fontFamily: MONO,
+                      fontWeight: 600,
+                      fontSize: 11.5,
+                      cursor: "pointer",
+                    }
+                  : {
+                      background: "transparent",
+                      color: "#6b635b",
+                      border: "none",
+                      padding: "4px 12px",
+                      borderRadius: 12,
+                      fontFamily: MONO,
+                      fontWeight: 450,
+                      fontSize: 11.5,
+                      cursor: "pointer",
+                    }
+              }
             >
               {y}
             </button>
@@ -424,29 +623,100 @@ export default function TableClient({
           {/* Sticky header */}
           <thead>
             <tr className="sticky top-0 z-20">
-              <th className="sticky left-0 z-30 bg-gray-900 text-white text-left px-4 py-3 font-semibold text-[11px] uppercase tracking-widest whitespace-nowrap border-r border-gray-700">
+              <th
+                className="sticky left-0 z-30 whitespace-nowrap"
+                style={{
+                  background: "#1a1715",
+                  color: "#6b635b",
+                  textAlign: "left",
+                  padding: "12px 16px",
+                  fontFamily: SANS,
+                  fontWeight: 600,
+                  fontSize: 10,
+                  textTransform: "uppercase",
+                  letterSpacing: "1.4px",
+                  borderRight: "1px solid #2d2925",
+                }}
+              >
                 Category / Subcategory
               </th>
-              <th className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-blue-300 whitespace-nowrap">
+              <th
+                style={{
+                  background: "#1a1715",
+                  color: "oklch(0.45 0.12 35)",
+                  textAlign: "right",
+                  padding: "12px 8px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "1.4px",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 Budget
               </th>
               {MONTHS_SHORT.map((m, i) => (
                 <th
                   key={m}
-                  className={`text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-white whitespace-nowrap ${
-                    isCurrentMonthCol(i) ? "bg-blue-800" : "bg-gray-900"
-                  }`}
+                  style={{
+                    background: isCurrentMonthCol(i) ? "oklch(0.97 0.02 35)" : "#1a1715",
+                    color: isCurrentMonthCol(i) ? "oklch(0.45 0.12 35)" : "#a39a8f",
+                    textAlign: "right",
+                    padding: "12px 8px",
+                    fontSize: 10,
+                    fontWeight: isCurrentMonthCol(i) ? 700 : 600,
+                    textTransform: "uppercase",
+                    letterSpacing: "1.4px",
+                    whiteSpace: "nowrap",
+                  }}
                 >
                   {m}
                 </th>
               ))}
-              <th className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-white whitespace-nowrap border-l border-gray-700">
+              <th
+                style={{
+                  background: "#1a1715",
+                  color: "#a39a8f",
+                  textAlign: "right",
+                  padding: "12px 8px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "1.4px",
+                  whiteSpace: "nowrap",
+                  borderLeft: "1px solid #2d2925",
+                }}
+              >
                 Annual Total
               </th>
-              <th className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-blue-300 whitespace-nowrap">
+              <th
+                style={{
+                  background: "#1a1715",
+                  color: "oklch(0.45 0.12 35)",
+                  textAlign: "right",
+                  padding: "12px 8px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "1.4px",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 Annual Budget
               </th>
-              <th className="bg-gray-900 text-right px-3 py-3 font-semibold text-[11px] uppercase tracking-widest text-white whitespace-nowrap">
+              <th
+                style={{
+                  background: "#1a1715",
+                  color: "oklch(0.45 0.12 35)",
+                  textAlign: "right",
+                  padding: "12px 8px",
+                  fontSize: 10,
+                  fontWeight: 600,
+                  textTransform: "uppercase",
+                  letterSpacing: "1.4px",
+                  whiteSpace: "nowrap",
+                }}
+              >
                 Variance
               </th>
             </tr>
@@ -456,44 +726,165 @@ export default function TableClient({
             {/* ── 1. INCOME ─────────────────────────────────────────────────── */}
             {incomeSection && (
               <>
-                <SectionHeaderRow label="Income" />
+                <SectionHeaderRow label="Income" isIncome />
 
-                {incomeSection.rows.map((row, ri) => (
-                  <tr key={row.subName} className={ri % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td
-                      className={`sticky left-0 z-10 ${ri % 2 === 0 ? "bg-white" : "bg-gray-50"} px-4 py-2 pl-9 text-gray-700 border-r border-gray-100 whitespace-nowrap text-[13px]`}
-                    >
-                      {row.subName}
-                    </td>
-                    <td className="px-3 py-2 text-right text-gray-300 text-[13px]">—</td>
-                    {row.monthly.map((amt, i) => (
-                      <IncomeCell key={i} amount={amt} monthIdx={i} />
-                    ))}
-                    <td
-                      className={`px-3 py-2 text-right tabular-nums font-medium border-l border-gray-100 text-[13px] ${
-                        row.annualTotal > 0 ? "text-green-600" : "text-gray-300"
-                      }`}
-                    >
-                      {row.annualTotal > 0 ? fmtDollars(row.annualTotal) : "—"}
-                    </td>
-                    <td className="px-3 py-2 text-right text-gray-300 text-[13px]">—</td>
-                    <td className="px-3 py-2 text-right text-gray-300 text-[13px]">—</td>
-                  </tr>
-                ))}
+                {incomeSection.rows.map((row, ri) => {
+                  const evenRow = ri % 2 === 0;
+                  const rowBg = evenRow ? "transparent" : "#f3efe7";
+                  const stickyBg = evenRow ? "#faf8f4" : "#f3efe7";
+                  return (
+                    <tr key={row.subName}>
+                      <td
+                        className="sticky left-0 z-10 whitespace-nowrap"
+                        style={{
+                          background: stickyBg,
+                          color: "#1a1715",
+                          fontSize: 11.5,
+                          padding: "8px 12px 8px 36px",
+                          fontFamily: SANS,
+                          borderBottom: "1px solid #ebe5dc",
+                        }}
+                      >
+                        {row.subName}
+                      </td>
+                      <td
+                        style={{
+                          color: "#a39a8f",
+                          textAlign: "right",
+                          padding: "8px 8px",
+                          fontSize: 11.5,
+                          borderBottom: "1px solid #ebe5dc",
+                          background: rowBg,
+                        }}
+                      >
+                        —
+                      </td>
+                      {row.monthly.map((amt, i) => (
+                        <IncomeCell key={i} amount={amt} monthIdx={i} rowBg={rowBg} />
+                      ))}
+                      <td
+                        style={{
+                          textAlign: "right",
+                          fontFamily: MONO,
+                          fontVariantNumeric: "tabular-nums",
+                          fontSize: 11.5,
+                          padding: "8px 8px",
+                          fontWeight: 600,
+                          color: row.annualTotal > 0 ? "oklch(0.52 0.09 150)" : "#a39a8f",
+                          borderBottom: "1px solid #ebe5dc",
+                          borderLeft: "1px solid #ebe5dc",
+                          background: rowBg,
+                        }}
+                      >
+                        {row.annualTotal > 0 ? fmtDollars(row.annualTotal) : "—"}
+                      </td>
+                      <td
+                        style={{
+                          color: "#a39a8f",
+                          textAlign: "right",
+                          padding: "8px 8px",
+                          fontSize: 11.5,
+                          borderBottom: "1px solid #ebe5dc",
+                          background: rowBg,
+                        }}
+                      >
+                        —
+                      </td>
+                      <td
+                        style={{
+                          color: "#a39a8f",
+                          textAlign: "right",
+                          padding: "8px 8px",
+                          fontSize: 11.5,
+                          borderBottom: "1px solid #ebe5dc",
+                          background: rowBg,
+                        }}
+                      >
+                        —
+                      </td>
+                    </tr>
+                  );
+                })}
 
-                <tr className="bg-gray-100">
-                  <td className="sticky left-0 z-10 bg-gray-100 px-4 py-2 pl-4 text-gray-800 font-semibold border-r border-gray-200 whitespace-nowrap text-[13px]">
+                {/* Income Total */}
+                <tr>
+                  <td
+                    className="sticky left-0 z-10 whitespace-nowrap"
+                    style={{
+                      background: "#ffffff",
+                      color: "#1a1715",
+                      fontSize: 11.5,
+                      padding: "10px 12px",
+                      fontFamily: SANS,
+                      fontWeight: 700,
+                      borderTop: "1px solid #ebe5dc",
+                      borderBottom: "1px solid #ebe5dc",
+                    }}
+                  >
                     Income Total
                   </td>
-                  <td className="px-3 py-2 text-right text-gray-300">—</td>
+                  <td
+                    style={{
+                      color: "#a39a8f",
+                      textAlign: "right",
+                      padding: "10px 8px",
+                      fontSize: 11.5,
+                      fontFamily: MONO,
+                      background: "#ffffff",
+                      borderTop: "1px solid #ebe5dc",
+                      borderBottom: "1px solid #ebe5dc",
+                    }}
+                  >
+                    —
+                  </td>
                   {incomeSection.sectionMonthly.map((amt, i) => (
-                    <IncomeCell key={i} amount={amt} monthIdx={i} />
+                    <IncomeCell key={i} amount={amt} monthIdx={i} bold rowBg="#ffffff" />
                   ))}
-                  <td className="px-3 py-2 text-right tabular-nums font-semibold text-green-600 border-l border-gray-200">
+                  <td
+                    style={{
+                      textAlign: "right",
+                      fontFamily: MONO,
+                      fontVariantNumeric: "tabular-nums",
+                      fontSize: 11.5,
+                      padding: "10px 8px",
+                      fontWeight: 700,
+                      color: "oklch(0.52 0.09 150)",
+                      background: "#ffffff",
+                      borderTop: "1px solid #ebe5dc",
+                      borderBottom: "1px solid #ebe5dc",
+                      borderLeft: "1px solid #ebe5dc",
+                    }}
+                  >
                     {incomeSection.sectionTotal > 0 ? fmtDollars(incomeSection.sectionTotal) : "—"}
                   </td>
-                  <td className="px-3 py-2 text-right text-gray-300">—</td>
-                  <td className="px-3 py-2 text-right text-gray-300">—</td>
+                  <td
+                    style={{
+                      color: "#a39a8f",
+                      textAlign: "right",
+                      padding: "10px 8px",
+                      fontSize: 11.5,
+                      fontFamily: MONO,
+                      background: "#ffffff",
+                      borderTop: "1px solid #ebe5dc",
+                      borderBottom: "1px solid #ebe5dc",
+                    }}
+                  >
+                    —
+                  </td>
+                  <td
+                    style={{
+                      color: "#a39a8f",
+                      textAlign: "right",
+                      padding: "10px 8px",
+                      fontSize: 11.5,
+                      fontFamily: MONO,
+                      background: "#ffffff",
+                      borderTop: "1px solid #ebe5dc",
+                      borderBottom: "1px solid #ebe5dc",
+                    }}
+                  >
+                    —
+                  </td>
                 </tr>
               </>
             )}
@@ -503,51 +894,128 @@ export default function TableClient({
               <Fragment key={section.id}>
                 <SectionHeaderRow label={section.name} />
 
-                {section.subRows.map((row, ri) => (
-                  <tr key={row.subName} className={ri % 2 === 0 ? "bg-white" : "bg-gray-50"}>
-                    <td
-                      className={`sticky left-0 z-10 ${
-                        ri % 2 === 0 ? "bg-white" : "bg-gray-50"
-                      } px-4 py-2 pl-9 text-gray-700 border-r border-gray-100 whitespace-nowrap text-[13px]`}
-                    >
-                      {row.subName}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-blue-600 text-[13px]">
-                      {row.budget > 0 ? fmtDollars(row.budget) : <span className="text-gray-300">—</span>}
-                    </td>
-                    {row.monthly.map((amt, i) => (
-                      <ExpenseCell key={i} amount={amt} monthIdx={i} />
-                    ))}
-                    <td className="px-3 py-2 text-right tabular-nums font-medium text-gray-800 border-l border-gray-100 text-[13px]">
-                      {row.annualTotal > 0 ? fmtDollars(row.annualTotal) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-blue-600 text-[13px]">
-                      {row.annualBudget > 0 ? fmtDollars(row.annualBudget) : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td
-                      className={`px-3 py-2 text-right tabular-nums font-medium text-[13px] ${
-                        row.annualBudget === 0
-                          ? "text-gray-300"
-                          : row.variance >= 0
-                          ? "text-green-600"
-                          : "text-red-500"
-                      }`}
-                    >
-                      {row.annualBudget === 0 ? "—" : fmtDollars(row.variance)}
-                    </td>
-                  </tr>
-                ))}
+                {section.subRows.map((row, ri) => {
+                  const evenRow = ri % 2 === 0;
+                  const rowBg = evenRow ? "transparent" : "#f3efe7";
+                  const stickyBg = evenRow ? "#faf8f4" : "#f3efe7";
+                  return (
+                    <tr key={row.subName}>
+                      <td
+                        className="sticky left-0 z-10 whitespace-nowrap"
+                        style={{
+                          background: stickyBg,
+                          color: "#1a1715",
+                          fontSize: 11.5,
+                          padding: "8px 12px 8px 36px",
+                          fontFamily: SANS,
+                          borderBottom: "1px solid #ebe5dc",
+                        }}
+                      >
+                        {row.subName}
+                      </td>
+                      <td
+                        style={{
+                          color: row.budget > 0 ? "#6b635b" : "#a39a8f",
+                          textAlign: "right",
+                          fontFamily: MONO,
+                          fontVariantNumeric: "tabular-nums",
+                          fontSize: 11.5,
+                          padding: "8px 8px",
+                          borderBottom: "1px solid #ebe5dc",
+                          background: rowBg,
+                        }}
+                      >
+                        {row.budget > 0 ? fmtDollars(row.budget) : "—"}
+                      </td>
+                      {row.monthly.map((amt, i) => (
+                        <ExpenseCell key={i} amount={amt} monthIdx={i} rowBg={rowBg} />
+                      ))}
+                      <td
+                        style={{
+                          textAlign: "right",
+                          fontFamily: MONO,
+                          fontVariantNumeric: "tabular-nums",
+                          fontSize: 11.5,
+                          padding: "8px 8px",
+                          fontWeight: 600,
+                          color: row.annualTotal > 0 ? "#1a1715" : "#a39a8f",
+                          borderBottom: "1px solid #ebe5dc",
+                          borderLeft: "1px solid #ebe5dc",
+                          background: rowBg,
+                        }}
+                      >
+                        {row.annualTotal > 0 ? fmtDollars(row.annualTotal) : "—"}
+                      </td>
+                      <td
+                        style={{
+                          color: row.annualBudget > 0 ? "#6b635b" : "#a39a8f",
+                          textAlign: "right",
+                          fontFamily: MONO,
+                          fontVariantNumeric: "tabular-nums",
+                          fontSize: 11.5,
+                          padding: "8px 8px",
+                          borderBottom: "1px solid #ebe5dc",
+                          background: rowBg,
+                        }}
+                      >
+                        {row.annualBudget > 0 ? fmtDollars(row.annualBudget) : "—"}
+                      </td>
+                      <td
+                        style={{
+                          textAlign: "right",
+                          fontFamily: MONO,
+                          fontVariantNumeric: "tabular-nums",
+                          fontSize: 11.5,
+                          padding: "8px 8px",
+                          fontWeight: 600,
+                          color:
+                            row.annualBudget === 0
+                              ? "#a39a8f"
+                              : row.variance >= 0
+                              ? "oklch(0.52 0.09 150)"
+                              : "oklch(0.52 0.13 25)",
+                          borderBottom: "1px solid #ebe5dc",
+                          background: rowBg,
+                        }}
+                      >
+                        {row.annualBudget === 0 ? "—" : fmtDollars(row.variance)}
+                      </td>
+                    </tr>
+                  );
+                })}
 
                 <CategoryTotalRow section={section} />
               </Fragment>
             ))}
 
             {/* ── 11. GRAND TOTAL ───────────────────────────────────────────── */}
-            <tr className="bg-gray-900 text-white">
-              <td className="sticky left-0 z-10 bg-gray-900 px-4 py-3 text-white font-bold border-r border-gray-700 whitespace-nowrap">
+            <tr>
+              <td
+                className="sticky left-0 z-10 whitespace-nowrap"
+                style={{
+                  background: "#1a1715",
+                  color: "#ffffff",
+                  fontSize: 12,
+                  fontFamily: SANS,
+                  fontWeight: 700,
+                  padding: "12px 16px",
+                  borderRight: "1px solid #2d2925",
+                }}
+              >
                 Grand Total
               </td>
-              <td className="px-3 py-3 text-right tabular-nums font-bold text-blue-300">
+              <td
+                style={{
+                  background: "#1a1715",
+                  color: "oklch(0.93 0.04 35)",
+                  textAlign: "right",
+                  fontFamily: MONO,
+                  fontVariantNumeric: "tabular-nums",
+                  fontSize: 11.5,
+                  padding: "12px 8px",
+                  fontWeight: 700,
+                }}
+              >
                 {fmtDollars(grandBudget)}
               </td>
               {grandMonthly.map((amt, i) => {
@@ -556,24 +1024,61 @@ export default function TableClient({
                 return (
                   <td
                     key={i}
-                    className={`px-3 py-3 text-right tabular-nums font-bold ${current ? "bg-blue-900" : ""} ${
-                      future && amt === 0 ? "text-gray-500" : "text-white"
-                    }`}
+                    style={{
+                      background: current ? "oklch(0.45 0.12 35)" : "#1a1715",
+                      color: future && amt === 0 ? "#6b635b" : "#ffffff",
+                      textAlign: "right",
+                      fontFamily: MONO,
+                      fontVariantNumeric: "tabular-nums",
+                      fontSize: 11.5,
+                      padding: "12px 8px",
+                      fontWeight: 700,
+                    }}
                   >
                     {future && amt === 0 ? "—" : fmtDollars(amt)}
                   </td>
                 );
               })}
-              <td className="px-3 py-3 text-right tabular-nums font-bold text-white border-l border-gray-700">
+              <td
+                style={{
+                  background: "#1a1715",
+                  color: "#ffffff",
+                  textAlign: "right",
+                  fontFamily: MONO,
+                  fontVariantNumeric: "tabular-nums",
+                  fontSize: 11.5,
+                  padding: "12px 8px",
+                  fontWeight: 700,
+                  borderLeft: "1px solid #2d2925",
+                }}
+              >
                 {fmtDollars(grandTotal)}
               </td>
-              <td className="px-3 py-3 text-right tabular-nums font-bold text-blue-300">
+              <td
+                style={{
+                  background: "#1a1715",
+                  color: "oklch(0.93 0.04 35)",
+                  textAlign: "right",
+                  fontFamily: MONO,
+                  fontVariantNumeric: "tabular-nums",
+                  fontSize: 11.5,
+                  padding: "12px 8px",
+                  fontWeight: 700,
+                }}
+              >
                 {fmtDollars(grandAnnualBudget)}
               </td>
               <td
-                className={`px-3 py-3 text-right tabular-nums font-bold ${
-                  grandVariance >= 0 ? "text-green-400" : "text-red-400"
-                }`}
+                style={{
+                  background: "#1a1715",
+                  color: grandVariance >= 0 ? "oklch(0.52 0.09 150)" : "oklch(0.52 0.13 25)",
+                  textAlign: "right",
+                  fontFamily: MONO,
+                  fontVariantNumeric: "tabular-nums",
+                  fontSize: 11.5,
+                  padding: "12px 8px",
+                  fontWeight: 700,
+                }}
               >
                 {fmtDollars(grandVariance)}
               </td>
@@ -583,107 +1088,222 @@ export default function TableClient({
             <SectionHeaderRow label="Net Position" />
 
             {/* Row 1: Net Surplus / (Deficit) */}
-            <tr className="bg-slate-700 text-white font-bold">
-              <td className="sticky left-0 z-10 bg-slate-700 px-4 py-3 text-white font-bold border-r border-slate-600 whitespace-nowrap">
+            <tr>
+              <td
+                className="sticky left-0 z-10 whitespace-nowrap"
+                style={{
+                  background: "#ffffff",
+                  color: "#1a1715",
+                  fontSize: 11.5,
+                  fontFamily: SANS,
+                  fontWeight: 700,
+                  padding: "10px 12px",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                }}
+              >
                 Net Surplus / (Deficit)
               </td>
-              {/* Budget — not applicable */}
-              <td className="px-3 py-3 text-right text-slate-400">—</td>
-              {/* Monthly net */}
+              <td
+                style={{
+                  color: "#a39a8f",
+                  textAlign: "right",
+                  padding: "10px 8px",
+                  fontSize: 11.5,
+                  fontFamily: MONO,
+                  background: "#ffffff",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                }}
+              >
+                —
+              </td>
               {netMonthly.map((net, i) => {
                 const incomeAmt = incomeSection?.sectionMonthly[i] ?? 0;
                 const expenseAmt = grandMonthly[i];
                 const blank = isFutureMonth(i) && incomeAmt === 0 && expenseAmt === 0;
                 const current = isCurrentMonthCol(i);
-                if (blank) {
-                  return (
-                    <td key={i} className={`px-3 py-3 text-right font-bold text-slate-400 ${current ? "bg-slate-600" : ""}`}>
-                      —
-                    </td>
-                  );
-                }
                 return (
                   <td
                     key={i}
-                    className={`px-3 py-3 text-right tabular-nums font-bold ${current ? "bg-slate-600" : ""} ${
-                      net >= 0 ? "text-green-300" : "text-red-300"
-                    }`}
+                    style={{
+                      background: current ? "oklch(0.97 0.02 35)" : "#ffffff",
+                      color: blank ? "#a39a8f" : net >= 0 ? "oklch(0.52 0.09 150)" : "oklch(0.52 0.13 25)",
+                      textAlign: "right",
+                      fontFamily: MONO,
+                      fontVariantNumeric: "tabular-nums",
+                      fontSize: 11.5,
+                      padding: "10px 8px",
+                      fontWeight: 700,
+                      borderTop: "1px solid #ebe5dc",
+                      borderBottom: "1px solid #ebe5dc",
+                    }}
                   >
-                    {fmtAccounting(net)}
+                    {blank ? "—" : fmtAccounting(net)}
                   </td>
                 );
               })}
-              {/* Annual Total */}
               <td
-                className={`px-3 py-3 text-right tabular-nums font-bold border-l border-slate-600 ${
-                  annualNet >= 0 ? "text-green-300" : "text-red-300"
-                }`}
+                style={{
+                  textAlign: "right",
+                  fontFamily: MONO,
+                  fontVariantNumeric: "tabular-nums",
+                  fontSize: 11.5,
+                  padding: "10px 8px",
+                  fontWeight: 700,
+                  color: annualNet >= 0 ? "oklch(0.52 0.09 150)" : "oklch(0.52 0.13 25)",
+                  background: "#ffffff",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                  borderLeft: "1px solid #ebe5dc",
+                }}
               >
                 {fmtAccounting(annualNet)}
               </td>
-              {/* Annual Budget — not applicable */}
-              <td className="px-3 py-3 text-right text-slate-400">—</td>
-              {/* Variance column = annual net (surplus/deficit for the year) */}
               <td
-                className={`px-3 py-3 text-right tabular-nums font-bold ${
-                  annualNet >= 0 ? "text-green-300" : "text-red-300"
-                }`}
+                style={{
+                  color: "#a39a8f",
+                  textAlign: "right",
+                  padding: "10px 8px",
+                  fontSize: 11.5,
+                  fontFamily: MONO,
+                  background: "#ffffff",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                }}
+              >
+                —
+              </td>
+              <td
+                style={{
+                  textAlign: "right",
+                  fontFamily: MONO,
+                  fontVariantNumeric: "tabular-nums",
+                  fontSize: 11.5,
+                  padding: "10px 8px",
+                  fontWeight: 700,
+                  color: annualNet >= 0 ? "oklch(0.52 0.09 150)" : "oklch(0.52 0.13 25)",
+                  background: "#ffffff",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                }}
               >
                 {fmtAccounting(annualNet)}
               </td>
             </tr>
 
             {/* Row 2: Savings Rate */}
-            <tr className="bg-slate-700 text-white font-bold border-t border-slate-600">
-              <td className="sticky left-0 z-10 bg-slate-700 px-4 py-3 text-white font-bold border-r border-slate-600 whitespace-nowrap">
+            <tr>
+              <td
+                className="sticky left-0 z-10 whitespace-nowrap"
+                style={{
+                  background: "#ffffff",
+                  color: "#1a1715",
+                  fontSize: 11.5,
+                  fontFamily: SANS,
+                  fontWeight: 700,
+                  padding: "10px 12px",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                }}
+              >
                 Savings Rate
               </td>
-              {/* Budget — not applicable */}
-              <td className="px-3 py-3 text-right text-slate-400">—</td>
-              {/* Monthly savings rate */}
+              <td
+                style={{
+                  color: "#a39a8f",
+                  textAlign: "right",
+                  padding: "10px 8px",
+                  fontSize: 11.5,
+                  fontFamily: MONO,
+                  background: "#ffffff",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                }}
+              >
+                —
+              </td>
               {savingsRateMonthly.map((rate, i) => {
                 const current = isCurrentMonthCol(i);
-                if (rate === null) {
-                  return (
-                    <td key={i} className={`px-3 py-3 text-right font-bold text-slate-400 ${current ? "bg-slate-600" : ""}`}>
-                      —
-                    </td>
-                  );
-                }
                 return (
                   <td
                     key={i}
-                    className={`px-3 py-3 text-right tabular-nums font-bold ${current ? "bg-slate-600" : ""} ${
-                      rate >= 0 ? "text-green-300" : "text-red-300"
-                    }`}
+                    style={{
+                      background: current ? "oklch(0.97 0.02 35)" : "#ffffff",
+                      color:
+                        rate === null
+                          ? "#a39a8f"
+                          : rate >= 0
+                          ? "oklch(0.52 0.09 150)"
+                          : "oklch(0.52 0.13 25)",
+                      textAlign: "right",
+                      fontFamily: MONO,
+                      fontVariantNumeric: "tabular-nums",
+                      fontSize: 11.5,
+                      padding: "10px 8px",
+                      fontWeight: 700,
+                      borderTop: "1px solid #ebe5dc",
+                      borderBottom: "1px solid #ebe5dc",
+                    }}
                   >
-                    {fmtPct(rate)}
+                    {rate === null ? "—" : fmtPct(rate)}
                   </td>
                 );
               })}
-              {/* Annual savings rate */}
               <td
-                className={`px-3 py-3 text-right tabular-nums font-bold border-l border-slate-600 ${
-                  annualSavingsRate === null
-                    ? "text-slate-400"
-                    : annualSavingsRate >= 0
-                    ? "text-green-300"
-                    : "text-red-300"
-                }`}
+                style={{
+                  textAlign: "right",
+                  fontFamily: MONO,
+                  fontVariantNumeric: "tabular-nums",
+                  fontSize: 11.5,
+                  padding: "10px 8px",
+                  fontWeight: 700,
+                  color:
+                    annualSavingsRate === null
+                      ? "#a39a8f"
+                      : annualSavingsRate >= 0
+                      ? "oklch(0.52 0.09 150)"
+                      : "oklch(0.52 0.13 25)",
+                  background: "#ffffff",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                  borderLeft: "1px solid #ebe5dc",
+                }}
               >
                 {annualSavingsRate === null ? "—" : fmtPct(annualSavingsRate)}
               </td>
-              {/* Annual Budget — not applicable */}
-              <td className="px-3 py-3 text-right text-slate-400">—</td>
-              {/* Variance column — annual savings rate */}
               <td
-                className={`px-3 py-3 text-right tabular-nums font-bold ${
-                  annualSavingsRate === null
-                    ? "text-slate-400"
-                    : annualSavingsRate >= 0
-                    ? "text-green-300"
-                    : "text-red-300"
-                }`}
+                style={{
+                  color: "#a39a8f",
+                  textAlign: "right",
+                  padding: "10px 8px",
+                  fontSize: 11.5,
+                  fontFamily: MONO,
+                  background: "#ffffff",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                }}
+              >
+                —
+              </td>
+              <td
+                style={{
+                  textAlign: "right",
+                  fontFamily: MONO,
+                  fontVariantNumeric: "tabular-nums",
+                  fontSize: 11.5,
+                  padding: "10px 8px",
+                  fontWeight: 700,
+                  color:
+                    annualSavingsRate === null
+                      ? "#a39a8f"
+                      : annualSavingsRate >= 0
+                      ? "oklch(0.52 0.09 150)"
+                      : "oklch(0.52 0.13 25)",
+                  background: "#ffffff",
+                  borderTop: "1px solid #ebe5dc",
+                  borderBottom: "1px solid #ebe5dc",
+                }}
               >
                 {annualSavingsRate === null ? "—" : fmtPct(annualSavingsRate)}
               </td>
