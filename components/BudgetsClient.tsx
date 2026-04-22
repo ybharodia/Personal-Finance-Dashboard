@@ -69,6 +69,18 @@ const PRESET_COLORS = [
   "#84cc16", "#ef4444", "#14b8a6", "#a855f7",
 ];
 
+const SPENT_COLORS: Record<string, string> = {
+  "Housing": "#8B6F5E",
+  "Transportation": "#B8956A",
+  "Food & Groceries": "#5C8A6F",
+  "Insurance": "#7A8A6F",
+  "Personal & Lifestyle": "#A0624A",
+  "Discretionary / Variable": "#7B6EA8",
+  "Jash Support": "#C4784A",
+  "Business Expense": "#4A7EA0",
+  "Savings & Investments": "#6B8FA8",
+};
+
 // ── AddCategoryModal ──────────────────────────────────────────────────────────
 
 function AddCategoryModal({
@@ -937,6 +949,12 @@ export default function BudgetsClient({
   const [filterMonthNum, filterYearNum] = filterMonth.split("-").map(Number);
   const isCurrentMonth = filterMonthNum === currentMonth && filterYearNum === currentYear;
 
+  const daysInMonth = new Date(filterYearNum, filterMonthNum, 0).getDate();
+  const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth;
+  const expectedPace = dayOfMonth / daysInMonth; // 0–1 fraction
+  const expectedPct = Math.round(expectedPace * 100); // for display
+  const daysLeft = daysInMonth - dayOfMonth;
+
   function navigateMonth(delta: number) {
     const [y, m] = filterMonth.split("-").map(Number);
     let nm = m + delta, ny = y;
@@ -1145,6 +1163,7 @@ export default function BudgetsClient({
     Budgeted: parseFloat(c.budgeted.toFixed(2)),
     Spent: parseFloat(c.spent.toFixed(2)),
     color: c.color,
+    spentColor: SPENT_COLORS[c.name] ?? c.color,
   }));
 
   const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?: { name: string; fill: string; value: number }[]; label?: string }) => {
@@ -1329,10 +1348,10 @@ export default function BudgetsClient({
                     iconSize={8}
                     wrapperStyle={{ fontSize: 11, color: "#6b7280", paddingTop: 8 }}
                   />
-                  <Bar dataKey="Budgeted" fill="#e2e8f0" radius={[3, 3, 0, 0]} />
+                  <Bar dataKey="Budgeted" fill="#E8E2D9" radius={[3, 3, 0, 0]} />
                   <Bar dataKey="Spent" radius={[3, 3, 0, 0]}>
                     {chartData.map((entry, i) => (
-                      <Cell key={i} fill={entry.color} />
+                      <Cell key={i} fill={entry.spentColor} />
                     ))}
                   </Bar>
                 </BarChart>
@@ -1447,33 +1466,126 @@ export default function BudgetsClient({
           )}
         </div>
 
-        {/* Category breakdown */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold text-gray-700">Category Breakdown</h2>
+        {/* Category breakdown label + pacing view */}
+        <div className="space-y-2">
+          <p style={{ fontSize: 10, letterSpacing: "1.4px", color: "#A39A8F", fontWeight: 600, textTransform: "uppercase" }}>
+            CATEGORY BREAKDOWN
+          </p>
+
           {categoryViews.length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-10 text-center">
               <p className="text-gray-400 text-sm">No categories yet. Click "Add Category" to get started.</p>
             </div>
-          ) : displayedCategoryViews.length === 0 ? (
+          ) : displayedCategoryViews.filter((c) => c.name !== "Income").length === 0 ? (
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-10 text-center">
               <p className="text-gray-400 text-sm">No categories match the active filters.</p>
             </div>
           ) : (
-            displayedCategoryViews.map((cat) => (
-              <CategoryRow
-                key={cat.id}
-                cat={cat}
-                accounts={accounts}
-                isIncome={cat.name === "Income"}
-                onEditSubcategory={openEdit}
-                onDelete={handleDeleteCategory}
-                onDeleteSubcategory={handleDeleteSubcategory}
-                onAddSubcategory={(catId, catName, catColor) =>
-                  setAddingSubFor({ catId, catName, catColor })
-                }
-                onEditTransaction={setEditingTxn}
-              />
-            ))
+            <div className="bg-white" style={{ border: "1px solid #EBE5DC", borderRadius: 10 }}>
+              {/* Pacing header */}
+              <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid #EBE5DC" }}>
+                <span className="text-sm font-medium text-gray-700">
+                  Pacing for {MONTH_NAMES[filterMonthNum - 1]} · Day {dayOfMonth} of {daysInMonth}
+                </span>
+                <span className="text-xs text-gray-400">
+                  Expected pace: {expectedPct}%
+                </span>
+              </div>
+
+              {/* Category rows */}
+              {displayedCategoryViews
+                .filter((cat) => cat.name !== "Income")
+                .map((cat, i, arr) => {
+                  const pct = cat.budgeted > 0 ? cat.spent / cat.budgeted : 0;
+                  const pacing = pct - expectedPace;
+                  const over = pct > 1;
+                  const catColor = SPENT_COLORS[cat.name] ?? cat.color;
+                  const barColor = over ? "#ef4444" : catColor;
+                  const barWidth = Math.min(pct * 100, 100);
+                  const remaining = cat.budgeted - cat.spent;
+                  const projected = dayOfMonth > 0 ? (cat.spent / dayOfMonth) * daysInMonth : cat.spent;
+                  const diff = projected - cat.budgeted;
+
+                  let pillBg: string, pillColor: string, pillText: string;
+                  if (over) {
+                    pillBg = "oklch(0.95 0.03 25)";
+                    pillColor = "oklch(0.52 0.13 25)";
+                    pillText = "Over budget";
+                  } else if (pacing > 0.1) {
+                    pillBg = "oklch(0.96 0.05 80)";
+                    pillColor = "oklch(0.62 0.12 70)";
+                    pillText = "Trending over";
+                  } else if (pacing < -0.1) {
+                    pillBg = "oklch(0.95 0.04 150)";
+                    pillColor = "oklch(0.52 0.09 150)";
+                    pillText = "Ahead";
+                  } else {
+                    pillBg = "#F3EFE7";
+                    pillColor = "#6B635B";
+                    pillText = "On track";
+                  }
+
+                  return (
+                    <div
+                      key={cat.id}
+                      className="grid items-center gap-4 py-3 px-5"
+                      style={{
+                        gridTemplateColumns: "180px 120px 1fr 180px",
+                        borderBottom: i < arr.length - 1 ? "1px solid #EBE5DC" : undefined,
+                      }}
+                    >
+                      {/* Col 1: dot + name */}
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: catColor }} />
+                        <span className="truncate" style={{ fontWeight: 500, fontSize: 12.5 }}>{cat.name}</span>
+                      </div>
+
+                      {/* Col 2: status pill */}
+                      <div>
+                        <span
+                          className="inline-block px-2.5 py-0.5 rounded-full whitespace-nowrap"
+                          style={{ backgroundColor: pillBg, color: pillColor, fontSize: 11, fontWeight: 500 }}
+                        >
+                          {pillText}
+                        </span>
+                      </div>
+
+                      {/* Col 3: runway bar with pace marker */}
+                      <div className="relative h-2 rounded-full" style={{ backgroundColor: "#F3F4F6", overflow: "visible" }}>
+                        <div
+                          className="absolute inset-y-0 left-0 rounded-full"
+                          style={{ width: `${barWidth}%`, backgroundColor: barColor }}
+                        />
+                        <div
+                          className="absolute"
+                          style={{
+                            left: `${expectedPct}%`,
+                            top: "-4px",
+                            width: "1.5px",
+                            height: "16px",
+                            backgroundColor: "#9CA3AF",
+                            borderRadius: "1px",
+                            transform: "translateX(-50%)",
+                          }}
+                        />
+                      </div>
+
+                      {/* Col 4: stats */}
+                      <div className="text-right">
+                        <p className="font-mono text-xs text-gray-700 tabular-nums leading-tight">
+                          {formatCurrency(Math.max(remaining, 0))} left · {daysLeft}d
+                        </p>
+                        <p
+                          className="font-mono tabular-nums leading-tight"
+                          style={{ fontSize: 11, color: diff > 0 ? "#ef4444" : "#10b981" }}
+                        >
+                          Projected: {formatCurrency(projected)} ({diff > 0 ? "+" : ""}{formatCurrency(Math.abs(diff))})
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
           )}
         </div>
       </div>
