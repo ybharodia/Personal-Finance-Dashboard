@@ -949,8 +949,8 @@ export default function BudgetsClient({
   const [filterMonthNum, filterYearNum] = filterMonth.split("-").map(Number);
   const isCurrentMonth = filterMonthNum === currentMonth && filterYearNum === currentYear;
 
-  const daysInMonth = new Date(filterYearNum, filterMonthNum, 0).getDate();
-  const dayOfMonth = isCurrentMonth ? now.getDate() : daysInMonth;
+  const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+  const dayOfMonth = now.getDate();
   const expectedPace = dayOfMonth / daysInMonth; // 0–1 fraction
   const expectedPct = Math.round(expectedPace * 100); // for display
   const daysLeft = daysInMonth - dayOfMonth;
@@ -1485,7 +1485,7 @@ export default function BudgetsClient({
               {/* Pacing header */}
               <div className="flex items-center justify-between px-5 py-3" style={{ borderBottom: "1px solid #EBE5DC" }}>
                 <span className="text-sm font-medium text-gray-700">
-                  Pacing for {MONTH_NAMES[filterMonthNum - 1]} · Day {dayOfMonth} of {daysInMonth}
+                  Pacing for {MONTH_NAMES[now.getMonth()]} {now.getFullYear()} · Day {dayOfMonth} of {daysInMonth}
                 </span>
                 <span className="text-xs text-gray-400">
                   Expected pace: {expectedPct}%
