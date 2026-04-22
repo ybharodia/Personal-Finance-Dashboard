@@ -2,8 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import AccountsPanel from "@/components/AccountsPanel";
-import DateRangeFilter, { type DateRange, getPresetRange } from "@/components/DateRangeFilter";
+import { type DateRange, getPresetRange } from "@/components/DateRangeFilter";
 import TransactionModal from "@/components/TransactionModal";
 import AddTransactionModal from "@/components/AddTransactionModal";
 import { getCategoryMeta, formatCurrency } from "@/lib/data";
@@ -23,7 +22,42 @@ function toIsoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function TransactionsClient({ accounts, transactions, budgets, categories, plaidItems }: Props) {
+function fmtTxDate(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+}
+
+const CAT_COLORS: Record<string, { bg: string; ink: string }> = {
+  "Income":                   { bg: "oklch(0.95 0.04 150)", ink: "oklch(0.52 0.09 150)" },
+  "Housing":                  { bg: "oklch(0.94 0.03 260)", ink: "oklch(0.44 0.1 260)" },
+  "Food & Dining":            { bg: "oklch(0.94 0.04 60)",  ink: "oklch(0.45 0.1 60)" },
+  "Food & Groceries":         { bg: "oklch(0.94 0.04 60)",  ink: "oklch(0.45 0.1 60)" },
+  "Transportation":           { bg: "oklch(0.94 0.04 160)", ink: "oklch(0.42 0.08 160)" },
+  "Shopping":                 { bg: "oklch(0.94 0.04 340)", ink: "oklch(0.45 0.1 340)" },
+  "Subscriptions":            { bg: "oklch(0.94 0.04 220)", ink: "oklch(0.44 0.1 220)" },
+  "Personal & Lifestyle":     { bg: "oklch(0.97 0.02 35)",  ink: "oklch(0.45 0.12 35)" },
+  "Business Expense":         { bg: "oklch(0.94 0.04 190)", ink: "oklch(0.42 0.08 190)" },
+  "Health":                   { bg: "oklch(0.94 0.04 120)", ink: "oklch(0.42 0.08 120)" },
+  "Transfer":                 { bg: "oklch(0.94 0.02 240)", ink: "oklch(0.45 0.08 240)" },
+  "Discretionary / Variable": { bg: "oklch(0.94 0.04 290)", ink: "oklch(0.45 0.1 290)" },
+};
+
+const DEFAULT_CAT = { bg: "var(--fo-soft)", ink: "var(--fo-muted)" };
+
+const CHEVRON_BTN: React.CSSProperties = {
+  width: 28,
+  height: 28,
+  border: "1px solid var(--fo-hair)",
+  borderRadius: 6,
+  background: "var(--fo-card)",
+  color: "var(--fo-muted)",
+  cursor: "pointer",
+  fontSize: 16,
+  display: "grid",
+  placeItems: "center",
+};
+
+export default function TransactionsClient({ accounts, transactions, budgets, categories, plaidItems: _plaidItems }: Props) {
   const router = useRouter();
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -105,190 +139,289 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
     router.refresh();
   }
 
+  function prevMonth() {
+    const d = dateRange.from;
+    const year = d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear();
+    const month = d.getMonth() === 0 ? 11 : d.getMonth() - 1;
+    setDateRange({ from: new Date(year, month, 1), to: new Date(year, month + 1, 1), preset: "custom" });
+  }
+
+  function nextMonth() {
+    const d = dateRange.from;
+    const year = d.getMonth() === 11 ? d.getFullYear() + 1 : d.getFullYear();
+    const month = d.getMonth() === 11 ? 0 : d.getMonth() + 1;
+    setDateRange({ from: new Date(year, month, 1), to: new Date(year, month + 1, 1), preset: "custom" });
+  }
+
+  const monthLabel = dateRange.from.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+  function handleDownload() {
+    const rows = displayedTxns.map((t) => ({
+      Date: t.date,
+      Description: t.description,
+      Category: getCategoryMeta(t.category, categories)?.name ?? t.category ?? "",
+      Subcategory: t.subcategory ?? "",
+      Amount: t.amount,
+      Type: t.type,
+    }));
+    exportToExcel(rows, "transactions", "Transactions");
+  }
+
+  // suppress unused-var warnings for state kept per spec
+  void selectedAccount; void setSelectedAccount; void filterCategory; void setFilterCategory;
+  void filterCategoryMode; void setFilterCategoryMode; void uniqueCategories;
+
   return (
-    <div className="flex h-full">
-      <AccountsPanel accounts={accounts} selectedAccount={selectedAccount} onSelect={setSelectedAccount} plaidItems={plaidItems} />
+    <div style={{ background: "var(--fo-bg)", minHeight: "100%", fontFamily: "var(--font-fo-sans)" }}>
 
-      <div className="flex-1 overflow-y-auto bg-gray-50">
-        <div className="p-4 md:p-6 space-y-4 md:space-y-5">
-          {/* Header */}
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold text-gray-900">Transactions</h1>
-              <p className="text-sm text-gray-400 mt-0.5">
-                {displayedTxns.length} transaction{displayedTxns.length !== 1 ? "s" : ""}
-                {typeFilter && <span className="ml-1">· {typeFilter} only</span>}
-              </p>
-            </div>
-            <div className="flex items-center gap-3">
-              {/* Type filter cards — click to filter, click again to clear */}
-              <div className="flex gap-2 text-sm">
-                {([
-                  { key: "income",   label: "Income",    amount: totalIncome,    active: "bg-emerald-500 border-emerald-500 text-white", inactive: "bg-emerald-50 border-emerald-100 text-emerald-600" },
-                  { key: "expense",  label: "Expenses",  amount: totalExpenses,  active: "bg-red-500 border-red-500 text-white",           inactive: "bg-red-50 border-red-100 text-red-500" },
-                  { key: "transfer", label: "Transfers", amount: totalTransfers, active: "bg-blue-500 border-blue-500 text-white",          inactive: "bg-blue-50 border-blue-100 text-blue-500" },
-                ] as const).map(({ key, label, amount, active, inactive }) => (
-                  <button
-                    key={key}
-                    onClick={() => setTypeFilter(typeFilter === key ? null : key)}
-                    className={`border rounded-lg px-3 py-2 text-center transition-all ${typeFilter === key ? active : inactive} hover:opacity-80`}
-                  >
-                    <p className={`text-xs font-medium ${typeFilter === key ? "text-white/80" : "text-gray-400"}`}>{label}</p>
-                    <p className="font-bold tabular-nums">{formatCurrency(amount)}</p>
-                  </button>
-                ))}
-              </div>
-              <button
-                onClick={() => {
-                  const rows = displayedTxns.map((t) => ({
-                    Date: t.date,
-                    Description: t.description,
-                    Category: getCategoryMeta(t.category, categories)?.name ?? t.category ?? "",
-                    Subcategory: t.subcategory ?? "",
-                    Amount: t.amount,
-                    Type: t.type,
-                  }));
-                  exportToExcel(rows, "transactions", "Transactions");
-                }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white text-gray-700 text-sm font-semibold rounded-xl border border-gray-200 hover:bg-gray-50 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
-                </svg>
-                Download Excel
-              </button>
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="flex items-center gap-2 px-4 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors"
-              >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
-                </svg>
-                Add Transaction
-              </button>
-            </div>
-          </div>
+      {/* Filter bar */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
 
-          {/* Date range filter + Category filter */}
-          <div className="flex flex-wrap items-center gap-3">
-            <DateRangeFilter value={dateRange} onChange={setDateRange} />
-            <div className="h-4 w-px bg-gray-200" />
-            <select
-              value={filterCategory}
-              onChange={(e) => { setFilterCategory(e.target.value); setFilterCategoryMode("include"); }}
-              className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white text-gray-600 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all"
+        {/* Month navigator */}
+        <button style={CHEVRON_BTN} onClick={prevMonth}>‹</button>
+        <span style={{ fontSize: 13, fontWeight: 500, color: "var(--fo-ink)", minWidth: 100, textAlign: "center" }}>
+          {monthLabel}
+        </span>
+        <button style={CHEVRON_BTN} onClick={nextMonth}>›</button>
+
+        {/* Type filter pills */}
+        {([
+          { key: null,       label: "All" },
+          { key: "income",   label: "Income" },
+          { key: "expense",  label: "Expenses" },
+          { key: "transfer", label: "Transfers" },
+        ] as const).map(({ key, label }) => {
+          const active = typeFilter === key;
+          return (
+            <button
+              key={String(key)}
+              onClick={() => setTypeFilter(key)}
+              style={{
+                background: active ? "var(--fo-accent)" : "var(--fo-soft)",
+                color: active ? "white" : "var(--fo-muted)",
+                fontWeight: active ? 500 : 450,
+                borderRadius: 99,
+                padding: "5px 14px",
+                fontSize: 12,
+                border: "none",
+                cursor: "pointer",
+                fontFamily: "var(--font-fo-sans)",
+              }}
             >
-              <option value="">All categories</option>
-              {uniqueCategories.map((c) => (
-                <option key={c.id} value={c.id}>{c.name}</option>
-              ))}
-            </select>
-            {filterCategory && (
-              <button
-                onClick={() => setFilterCategoryMode((m) => m === "include" ? "exclude" : "include")}
-                className={`px-2 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
-                  filterCategoryMode === "exclude"
-                    ? "bg-red-50 border-red-200 text-red-500"
-                    : "bg-white border-gray-200 text-gray-500 hover:border-indigo-300 hover:text-indigo-600"
-                }`}
-              >
-                {filterCategoryMode === "exclude" ? "Excluding" : "Including"}
-              </button>
-            )}
-          </div>
+              {label}
+            </button>
+          );
+        })}
 
-          {/* Search */}
-          <div className="relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-4.35-4.35M17 11A6 6 0 1 1 5 11a6 6 0 0 1 12 0z" />
-            </svg>
-            <input
-              type="text"
-              placeholder="Search transactions…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              className="w-full pl-9 pr-4 py-2.5 text-sm bg-white border border-gray-200 rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition-all"
-            />
-            {search && (
-              <button onClick={() => setSearch("")} className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                </svg>
-              </button>
-            )}
-          </div>
+        {/* Right — search + add */}
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <input
+            type="text"
+            placeholder="Search..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              background: "var(--fo-soft)",
+              border: "none",
+              outline: "none",
+              borderRadius: 7,
+              padding: "7px 12px",
+              fontSize: 12.5,
+              color: "var(--fo-ink)",
+              width: 200,
+              fontFamily: "var(--font-fo-sans)",
+            }}
+          />
+          <button
+            onClick={() => setShowAddModal(true)}
+            style={{
+              background: "var(--fo-accent)",
+              color: "white",
+              border: "none",
+              borderRadius: 7,
+              padding: "7px 14px",
+              fontSize: 12,
+              fontWeight: 500,
+              cursor: "pointer",
+              fontFamily: "var(--font-fo-sans)",
+            }}
+          >
+            + Add Transaction
+          </button>
+        </div>
+      </div>
 
-          {/* Table */}
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-gray-50 border-b border-gray-100">
-                    {["Date", "Account", "Description", "Category", "Amount"].map((h, i) => (
-                      <th key={h} className={`px-5 py-3 text-xs font-semibold uppercase tracking-wider text-gray-400 ${i === 4 ? "text-right" : "text-left"}`}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {displayedTxns.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="px-5 py-12 text-center text-gray-400 text-sm">
-                        No transactions found.
+      {/* Summary cards */}
+      <div style={{ display: "flex", gap: 12, marginBottom: 16 }}>
+        {([
+          { label: "Income",    value: totalIncome,    count: filtered.filter((t) => t.type === "income").length,   color: "var(--fo-good)" },
+          { label: "Expenses",  value: totalExpenses,  count: filtered.filter((t) => t.type === "expense").length,  color: "var(--fo-bad)" },
+          { label: "Transfers", value: totalTransfers, count: filtered.filter((t) => t.type === "transfer").length, color: "var(--fo-ink)" },
+        ]).map(({ label, value, count, color }) => (
+          <div
+            key={label}
+            style={{
+              background: "var(--fo-card)",
+              border: "1px solid var(--fo-hair)",
+              borderRadius: 10,
+              padding: "14px 18px",
+              flex: 1,
+            }}
+          >
+            <p style={{ fontSize: 10, color: "var(--fo-muted)", textTransform: "uppercase", letterSpacing: "1.3px", marginBottom: 4, fontFamily: "var(--font-fo-sans)" }}>
+              {label}
+            </p>
+            <p className="num" style={{ fontFamily: "var(--font-fo-serif)", fontSize: 22, fontWeight: 500, color }}>
+              {formatCurrency(value)}
+            </p>
+            <p style={{ fontSize: 11, color: "var(--fo-faint)", marginTop: 2 }}>
+              {count} transaction{count !== 1 ? "s" : ""}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      {/* Table card */}
+      <div style={{ background: "var(--fo-card)", border: "1px solid var(--fo-hair)", borderRadius: 10, overflow: "hidden" }}>
+        <div style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+            <thead>
+              <tr style={{ background: "var(--fo-soft)", borderBottom: "1px solid var(--fo-hair)" }}>
+                {(["DATE", "DESCRIPTION", "CATEGORY", "ACCOUNT", "AMOUNT"] as const).map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      fontSize: 10,
+                      color: "var(--fo-muted)",
+                      letterSpacing: "1.3px",
+                      textTransform: "uppercase",
+                      padding: "10px 16px",
+                      fontWeight: 600,
+                      textAlign: h === "AMOUNT" ? "right" : "left",
+                      fontFamily: "var(--font-fo-sans)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {displayedTxns.length === 0 ? (
+                <tr>
+                  <td colSpan={5} style={{ padding: "48px 16px", textAlign: "center", fontSize: 13, color: "var(--fo-faint)" }}>
+                    No transactions found.
+                  </td>
+                </tr>
+              ) : (
+                displayedTxns.map((t) => {
+                  const acct = accounts.find((a) => a.id === t.account_id);
+                  const meta = getCategoryMeta(t.category, categories);
+                  const catLabel =
+                    t.type === "transfer"
+                      ? "Transfer"
+                      : meta?.name ?? (t.type === "income" ? "Income" : t.category || "Uncategorized");
+                  const catColors = CAT_COLORS[catLabel] ?? DEFAULT_CAT;
+                  const isIncome = t.type === "income";
+                  const isTransfer = t.type === "transfer";
+
+                  return (
+                    <tr
+                      key={t.id}
+                      style={{ borderBottom: "1px solid var(--fo-hair)", cursor: "pointer" }}
+                      onMouseEnter={(e) => { e.currentTarget.style.background = "var(--fo-soft)"; }}
+                      onMouseLeave={(e) => { e.currentTarget.style.background = ""; }}
+                      onClick={() => setEditingTx(t)}
+                    >
+                      {/* DATE */}
+                      <td style={{ padding: "12px 16px", fontFamily: "var(--font-fo-mono)", fontSize: 12, color: "var(--fo-faint)", whiteSpace: "nowrap" }}>
+                        {fmtTxDate(t.date)}
+                      </td>
+
+                      {/* DESCRIPTION */}
+                      <td style={{ padding: "12px 16px", maxWidth: 260 }}>
+                        <p style={{ fontSize: 13, color: "var(--fo-ink)", fontWeight: 450, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                          {t.description}
+                        </p>
+                        {t.subcategory && (
+                          <p style={{ fontSize: 11, color: "var(--fo-faint)", marginTop: 1 }}>{t.subcategory}</p>
+                        )}
+                      </td>
+
+                      {/* CATEGORY */}
+                      <td style={{ padding: "12px 16px" }}>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setEditingTx(t); }}
+                          style={{
+                            background: catColors.bg,
+                            color: catColors.ink,
+                            display: "inline-flex",
+                            alignItems: "center",
+                            borderRadius: 5,
+                            padding: "3px 10px",
+                            fontSize: 11,
+                            fontWeight: 500,
+                            border: "none",
+                            cursor: "pointer",
+                            fontFamily: "var(--font-fo-sans)",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {catLabel}
+                        </button>
+                      </td>
+
+                      {/* ACCOUNT */}
+                      <td style={{ padding: "12px 16px" }}>
+                        <p style={{ fontSize: 12, color: "var(--fo-ink)" }}>{acct?.bank_name}</p>
+                        <p style={{ fontSize: 11, color: "var(--fo-faint)", textTransform: "uppercase", marginTop: 1 }}>
+                          {acct ? (acct.custom_name?.trim() || acct.name) : ""}
+                        </p>
+                      </td>
+
+                      {/* AMOUNT */}
+                      <td
+                        style={{
+                          padding: "12px 16px",
+                          textAlign: "right",
+                          fontFamily: "var(--font-fo-mono)",
+                          fontSize: 13,
+                          fontWeight: 500,
+                          fontVariantNumeric: "tabular-nums",
+                          color: isIncome ? "var(--fo-good)" : isTransfer ? "var(--fo-muted)" : "var(--fo-ink)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {isIncome ? "+" : isTransfer ? "⇄ " : "−"}{formatCurrency(t.amount)}
                       </td>
                     </tr>
-                  ) : (
-                    displayedTxns.map((t) => {
-                      const acct = accounts.find((a) => a.id === t.account_id);
-                      const meta = getCategoryMeta(t.category, categories);
-                      return (
-                        <tr key={t.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                          <td className="px-5 py-3 text-gray-500 whitespace-nowrap font-mono text-xs">{t.date}</td>
-                          <td className="px-5 py-3 whitespace-nowrap">
-                            <p className="text-xs font-medium text-gray-700">{acct?.bank_name}</p>
-                            <p className="text-gray-400" style={{ fontSize: 11 }}>{acct ? (acct.custom_name?.trim() || acct.name) : ""}</p>
-                          </td>
-                          <td className="px-5 py-3 text-gray-700 max-w-xs">
-                            <p className="truncate">{t.description}</p>
-                            {t.subcategory && <p className="text-gray-400 text-xs mt-0.5">{t.subcategory}</p>}
-                          </td>
-                          <td className="px-5 py-3">
-                            <button
-                              onClick={() => setEditingTx(t)}
-                              className="group"
-                              title="Edit transaction"
-                            >
-                              {t.type === "transfer" ? (
-                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-opacity group-hover:opacity-75 bg-blue-50 text-blue-500">
-                                  <span className="w-1.5 h-1.5 rounded-full shrink-0 bg-blue-500" />
-                                  Transfer
-                                </span>
-                              ) : meta ? (
-                                <span
-                                  className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap transition-opacity group-hover:opacity-75"
-                                  style={{ backgroundColor: meta.color + "20", color: meta.color }}
-                                >
-                                  <span className="w-1.5 h-1.5 rounded-full shrink-0" style={{ backgroundColor: meta.color }} />
-                                  {meta.name}
-                                </span>
-                              ) : (
-                                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-400 hover:bg-gray-200 transition-colors">
-                                  <span className="w-1.5 h-1.5 rounded-full bg-gray-300" />
-                                  {t.type === "income" ? "Income" : t.category || "Uncategorized"}
-                                </span>
-                              )}
-                            </button>
-                          </td>
-                          <td className={`px-5 py-3 text-right font-semibold tabular-nums whitespace-nowrap ${t.type === "expense" ? "text-red-500" : t.type === "income" ? "text-emerald-600" : "text-blue-500"}`}>
-                            {t.type === "expense" ? "−" : t.type === "income" ? "+" : "⇄"}{formatCurrency(t.amount)}
-                          </td>
-                        </tr>
-                      );
-                    })
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: "1px solid var(--fo-hair)", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: "var(--fo-faint)" }}>
+            Showing {displayedTxns.length} of {filtered.length} transactions
+          </span>
+          <button
+            onClick={handleDownload}
+            style={{
+              border: "1px solid var(--fo-hair)",
+              background: "var(--fo-card)",
+              color: "var(--fo-ink)",
+              borderRadius: 6,
+              padding: "5px 12px",
+              fontSize: 12,
+              cursor: "pointer",
+              fontFamily: "var(--font-fo-sans)",
+            }}
+          >
+            ↓ Download Excel
+          </button>
         </div>
       </div>
 
