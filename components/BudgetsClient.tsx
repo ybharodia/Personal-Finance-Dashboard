@@ -81,125 +81,257 @@ const SPENT_COLORS: Record<string, string> = {
   "Savings & Investments": "#6B8FA8",
 };
 
-// ── AddCategoryModal ──────────────────────────────────────────────────────────
+const SWATCH_COLORS = [
+  "#8B6F5E", "#B8956A", "#5C8A6F", "#7A8A6F",
+  "#A0624A", "#7B6EA8", "#C4784A", "#4A7EA0",
+];
 
-function AddCategoryModal({
+// ── AddModal (unified Category + Subcategory creation) ────────────────────────
+
+function AddModal({
   existingIds,
   nextSortOrder,
-  onSave,
+  categories,
+  existingBudgets,
+  onCategorySave,
+  onSubcategorySave,
+  onToast,
   onClose,
 }: {
   existingIds: string[];
   nextSortOrder: number;
-  onSave: (cat: CategoryMeta) => void;
+  categories: CategoryMeta[];
+  existingBudgets: DbBudget[];
+  onCategorySave: (cat: CategoryMeta, budget?: DbBudget) => void;
+  onSubcategorySave: (budget: DbBudget) => void;
+  onToast: (msg: string) => void;
   onClose: () => void;
 }) {
-  const [name, setName] = useState("");
-  const [color, setColor] = useState(PRESET_COLORS[0]);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [tab, setTab] = useState<"category" | "subcategory">("category");
 
-  async function handleSave() {
-    const trimmed = name.trim();
-    if (!trimmed) { setError("Name is required."); return; }
+  // Category tab
+  const [catName, setCatName] = useState("");
+  const [catBudget, setCatBudget] = useState("");
+  const [catColor, setCatColor] = useState(SWATCH_COLORS[0]);
+  const [catNameErr, setCatNameErr] = useState(false);
+  const [catBudgetErr, setCatBudgetErr] = useState(false);
+  const [savingCat, setSavingCat] = useState(false);
+  const [catDbErr, setCatDbErr] = useState<string | null>(null);
+
+  // Subcategory tab
+  const spendingCats = categories.filter((c) => c.name !== "Income");
+  const [selectedCatId, setSelectedCatId] = useState(spendingCats[0]?.id ?? "");
+  const [subName, setSubName] = useState("");
+  const [subBudget, setSubBudget] = useState("");
+  const [subNameErr, setSubNameErr] = useState(false);
+  const [subDupErr, setSubDupErr] = useState(false);
+  const [savingSub, setSavingSub] = useState(false);
+  const [subDbErr, setSubDbErr] = useState<string | null>(null);
+
+  async function handleCreateCategory() {
+    const trimmed = catName.trim();
+    const budgetVal = catBudget.trim();
+    const nameOk = !!trimmed;
+    const budgetOk = !!budgetVal && !isNaN(parseFloat(budgetVal)) && parseFloat(budgetVal) >= 0;
+    setCatNameErr(!nameOk);
+    setCatBudgetErr(!budgetOk);
+    if (!nameOk || !budgetOk) return;
 
     let id = slugify(trimmed);
-    if (!id) { setError("Name must contain letters or numbers."); return; }
+    if (!id) { setCatNameErr(true); return; }
+    let finalId = id, counter = 2;
+    while (existingIds.includes(finalId)) finalId = `${id}-${counter++}`;
 
-    // Ensure unique ID
-    let finalId = id;
-    let counter = 2;
-    while (existingIds.includes(finalId)) {
-      finalId = `${id}-${counter++}`;
-    }
-
-    setSaving(true);
-    setError(null);
-    const { error: dbErr } = await supabase
+    setSavingCat(true);
+    setCatDbErr(null);
+    const { error: catErr } = await supabase
       .from("budget_categories")
-      .insert({ id: finalId, name: trimmed, color, sort_order: nextSortOrder });
+      .insert({ id: finalId, name: trimmed, color: catColor, sort_order: nextSortOrder });
+    if (catErr) { setCatDbErr(catErr.message); setSavingCat(false); return; }
 
-    if (dbErr) { setError(dbErr.message); setSaving(false); return; }
+    const budgetNum = parseFloat(budgetVal);
+    const budgetId = crypto.randomUUID();
+    const { data: budgetRow, error: budgetErr } = await supabase
+      .from("budgets")
+      .insert({ id: budgetId, category: finalId, subcategory: trimmed, budgeted_amount: budgetNum, month: 1, year: 1900 })
+      .select()
+      .single();
+    if (budgetErr) { setCatDbErr(budgetErr.message); setSavingCat(false); return; }
 
-    onSave({ id: finalId, name: trimmed, color });
+    onCategorySave({ id: finalId, name: trimmed, color: catColor }, budgetRow as DbBudget);
+    onToast("Category added");
+    onClose();
   }
+
+  async function handleCreateSubcategory() {
+    const trimmed = subName.trim();
+    if (!trimmed) { setSubNameErr(true); return; }
+    const existingSubs = existingBudgets
+      .filter((b) => b.category === selectedCatId)
+      .map((b) => b.subcategory.toLowerCase());
+    if (existingSubs.includes(trimmed.toLowerCase())) {
+      setSubNameErr(true);
+      setSubDupErr(true);
+      return;
+    }
+    const num = subBudget.trim() ? parseFloat(subBudget) : 0;
+    setSavingSub(true);
+    setSubDbErr(null);
+    const newId = crypto.randomUUID();
+    const { data, error: dbErr } = await supabase
+      .from("budgets")
+      .insert({ id: newId, category: selectedCatId, subcategory: trimmed, budgeted_amount: num, month: 1, year: 1900 })
+      .select()
+      .single();
+    if (dbErr) { setSubDbErr(dbErr.message); setSavingSub(false); return; }
+    onSubcategorySave(data as DbBudget);
+    onToast("Subcategory added");
+    onClose();
+  }
+
+  const inputBase = { border: "1px solid #EBE5DC", borderRadius: 6, padding: "8px 12px", fontSize: 13, width: "100%", outline: "none" };
+  const inputErr = { ...inputBase, borderColor: "#E07060" };
+  const labelStyle = { fontSize: 11, fontWeight: 600, color: "#A39A8F", textTransform: "uppercase" as const, letterSpacing: "0.8px", display: "block", marginBottom: 4 };
+  const btnStyle = { width: "100%", marginTop: 20, padding: "10px", borderRadius: 8, backgroundColor: "oklch(0.45 0.12 35)", color: "white", fontSize: 13, fontWeight: 600, border: "none" as const, cursor: "pointer" as const };
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.35)" }}
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-t-2xl sm:rounded-2xl shadow-xl w-full sm:max-w-sm p-6 pb-10 sm:pb-6"
+        className="bg-white shadow-xl relative"
+        style={{ borderRadius: 12, maxWidth: 480, width: "100%", padding: 24 }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="w-10 h-1 bg-gray-200 rounded-full mx-auto mb-5 sm:hidden" />
-        <h2 className="text-base font-semibold text-gray-900 mb-5">Add Category</h2>
+        {/* Close */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-6 h-6 flex items-center justify-center rounded-full hover:bg-gray-100 transition-colors"
+          style={{ color: "#A39A8F", fontSize: 18, lineHeight: 1 }}
+          aria-label="Close"
+        >
+          ×
+        </button>
 
-        {/* Name */}
-        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400 mb-1.5">
-          Category Name
-        </label>
-        <input
-          type="text"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
-          placeholder="e.g. Healthcare"
-          // eslint-disable-next-line jsx-a11y/no-autofocus
-          autoFocus
-          onKeyDown={(e) => { if (e.key === "Enter") handleSave(); if (e.key === "Escape") onClose(); }}
-          className="w-full px-3 py-2.5 border border-gray-300 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 mb-4"
-        />
+        <h2 className="text-base font-semibold text-gray-900 mb-4">
+          {tab === "category" ? "Add Category" : "Add Subcategory"}
+        </h2>
 
-        {/* Color */}
-        <label className="block text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">
-          Color
-        </label>
-        <div className="flex flex-wrap gap-2 mb-2">
-          {PRESET_COLORS.map((c) => (
+        {/* Tab switcher */}
+        <div className="flex gap-2 mb-5">
+          {(["category", "subcategory"] as const).map((t) => (
             <button
-              key={c}
-              onClick={() => setColor(c)}
-              className={`w-7 h-7 rounded-full transition-all ${color === c ? "ring-2 ring-offset-2 ring-gray-400 scale-110" : "hover:scale-110"}`}
-              style={{ backgroundColor: c }}
-              aria-label={c}
-            />
+              key={t}
+              onClick={() => setTab(t)}
+              style={{
+                padding: "5px 14px", borderRadius: 20, fontSize: 12, fontWeight: 500,
+                border: "none", cursor: "pointer",
+                backgroundColor: tab === t ? "#8B4513" : "#F3EFE7",
+                color: tab === t ? "white" : "#6B635B",
+              }}
+            >
+              {t === "category" ? "Main Category" : "Subcategory"}
+            </button>
           ))}
         </div>
-        {/* Custom colour picker */}
-        <div className="flex items-center gap-2 mt-2">
-          <input
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-            className="w-8 h-8 rounded cursor-pointer border border-gray-200"
-          />
-          <span className="text-xs text-gray-400">Custom colour</span>
-        </div>
 
-        {/* Preview */}
-        <div className="mt-4 flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: color }} />
-          <span className="text-sm font-medium text-gray-700">{name || "Category name"}</span>
-        </div>
+        {tab === "category" ? (
+          <div>
+            <label style={labelStyle}>Category Name</label>
+            <input
+              type="text"
+              value={catName}
+              onChange={(e) => { setCatName(e.target.value); setCatNameErr(false); }}
+              placeholder="e.g. Healthcare"
+              // eslint-disable-next-line jsx-a11y/no-autofocus
+              autoFocus
+              style={catNameErr ? inputErr : inputBase}
+              onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+            />
+            {catNameErr && <p style={{ fontSize: 11, color: "#E07060", marginTop: 3 }}>This field is required</p>}
 
-        {error && <p className="text-xs text-red-500 mt-2">{error}</p>}
+            <label style={{ ...labelStyle, marginTop: 14 }}>Monthly Budget</label>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#A39A8F", fontSize: 13, pointerEvents: "none" }}>$</span>
+              <input
+                type="number"
+                min="0"
+                value={catBudget}
+                onChange={(e) => { setCatBudget(e.target.value); setCatBudgetErr(false); }}
+                placeholder="0"
+                style={{ ...(catBudgetErr ? inputErr : inputBase), paddingLeft: 26 }}
+              />
+            </div>
+            {catBudgetErr && <p style={{ fontSize: 11, color: "#E07060", marginTop: 3 }}>This field is required</p>}
 
-        <div className="flex gap-3 mt-5">
-          <button
-            onClick={onClose}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-gray-700 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 disabled:opacity-60 transition-colors"
-          >
-            {saving ? "Adding…" : "Add Category"}
-          </button>
-        </div>
+            <label style={{ ...labelStyle, marginTop: 14 }}>Color</label>
+            <div style={{ display: "flex", gap: 8 }}>
+              {SWATCH_COLORS.map((c) => (
+                <button
+                  key={c}
+                  onClick={() => setCatColor(c)}
+                  style={{
+                    width: 24, height: 24, borderRadius: "50%", backgroundColor: c,
+                    border: "none", cursor: "pointer",
+                    outline: catColor === c ? `3px solid ${c}` : "none",
+                    outlineOffset: "2px",
+                    opacity: catColor === c ? 1 : 0.65,
+                    transform: catColor === c ? "scale(1.2)" : "scale(1)",
+                    transition: "transform 0.1s, opacity 0.1s",
+                  }}
+                  aria-label={c}
+                />
+              ))}
+            </div>
+
+            {catDbErr && <p style={{ fontSize: 11, color: "#E07060", marginTop: 10 }}>{catDbErr}</p>}
+            <button onClick={handleCreateCategory} disabled={savingCat} style={{ ...btnStyle, opacity: savingCat ? 0.7 : 1 }}>
+              {savingCat ? "Creating…" : "Create Category"}
+            </button>
+          </div>
+        ) : (
+          <div>
+            <label style={labelStyle}>Parent Category</label>
+            <select value={selectedCatId} onChange={(e) => setSelectedCatId(e.target.value)} style={inputBase}>
+              {spendingCats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+
+            <label style={{ ...labelStyle, marginTop: 14 }}>Subcategory Name</label>
+            <input
+              type="text"
+              value={subName}
+              onChange={(e) => { setSubName(e.target.value); setSubNameErr(false); setSubDupErr(false); setSubDbErr(null); }}
+              placeholder="e.g. Rent"
+              style={subNameErr ? inputErr : inputBase}
+              onKeyDown={(e) => { if (e.key === "Escape") onClose(); }}
+            />
+            {subNameErr && <p style={{ fontSize: 11, color: "#E07060", marginTop: 3 }}>{subDupErr ? "A subcategory with that name already exists." : "This field is required"}</p>}
+
+            <label style={{ ...labelStyle, marginTop: 14 }}>
+              Monthly Budget{" "}
+              <span style={{ fontWeight: 400, textTransform: "none", fontSize: 11, color: "#C4BAB0" }}>(optional)</span>
+            </label>
+            <div style={{ position: "relative" }}>
+              <span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "#A39A8F", fontSize: 13, pointerEvents: "none" }}>$</span>
+              <input
+                type="number"
+                min="0"
+                value={subBudget}
+                onChange={(e) => setSubBudget(e.target.value)}
+                placeholder="No budget"
+                style={{ ...inputBase, paddingLeft: 26 }}
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateSubcategory(); if (e.key === "Escape") onClose(); }}
+              />
+            </div>
+
+            {subDbErr && !subNameErr && <p style={{ fontSize: 11, color: "#E07060", marginTop: 10 }}>{subDbErr}</p>}
+            <button onClick={handleCreateSubcategory} disabled={savingSub} style={{ ...btnStyle, opacity: savingSub ? 0.7 : 1 }}>
+              {savingSub ? "Creating…" : "Create Subcategory"}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -919,6 +1051,8 @@ export default function BudgetsClient({
   const [deletedSubKeys, setDeletedSubKeys] = useState<Set<string>>(new Set());
   // State for AddSubcategoryModal
   const [addingSubFor, setAddingSubFor] = useState<{ catId: string; catName: string; catColor: string } | null>(null);
+  const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // All pre-loaded transactions (2-year window loaded server-side)
   const [allTransactions, setAllTransactions] = useState<DbTransaction[]>(transactions);
@@ -1001,8 +1135,14 @@ export default function BudgetsClient({
     });
   }
 
-  function handleCategoryAdded(cat: CategoryMeta) {
+  function showToastMsg(msg: string) {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 3000);
+  }
+
+  function handleCategoryAdded(cat: CategoryMeta, budget?: DbBudget) {
     setLocalCategories((prev) => [...prev, cat]);
+    if (budget) setLocalBudgets((prev) => [...prev, budget]);
     setShowAddCategory(false);
   }
 
@@ -1496,6 +1636,7 @@ export default function BudgetsClient({
               {displayedCategoryViews
                 .filter((cat) => cat.name !== "Income")
                 .map((cat, i, arr) => {
+                  const isExpanded = expandedCatId === cat.id;
                   const pct = cat.budgeted > 0 ? cat.spent / cat.budgeted : 0;
                   const pacing = pct - expectedPace;
                   const over = pct > 1;
@@ -1528,60 +1669,125 @@ export default function BudgetsClient({
                   return (
                     <div
                       key={cat.id}
-                      className="grid items-center gap-4 py-3 px-5"
-                      style={{
-                        gridTemplateColumns: "180px 120px 1fr 180px",
-                        borderBottom: i < arr.length - 1 ? "1px solid #EBE5DC" : undefined,
-                      }}
+                      style={{ borderBottom: i < arr.length - 1 ? "1px solid #EBE5DC" : undefined }}
                     >
-                      {/* Col 1: dot + name */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: catColor }} />
-                        <span className="truncate" style={{ fontWeight: 500, fontSize: 12.5 }}>{cat.name}</span>
+                      {/* Category row — clickable */}
+                      <div
+                        className="grid items-center gap-4 py-3 px-5 cursor-pointer hover:bg-gray-50 transition-colors"
+                        style={{ gridTemplateColumns: "180px 120px 1fr 180px 28px" }}
+                        onClick={() => setExpandedCatId(isExpanded ? null : cat.id)}
+                      >
+                        {/* Col 1: dot + name */}
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: catColor }} />
+                          <span className="truncate" style={{ fontWeight: 500, fontSize: 12.5 }}>{cat.name}</span>
+                        </div>
+
+                        {/* Col 2: status pill */}
+                        <div>
+                          <span
+                            className="inline-block px-2.5 py-0.5 rounded-full whitespace-nowrap"
+                            style={{ backgroundColor: pillBg, color: pillColor, fontSize: 11, fontWeight: 500 }}
+                          >
+                            {pillText}
+                          </span>
+                        </div>
+
+                        {/* Col 3: runway bar with pace marker */}
+                        <div className="relative h-2 rounded-full" style={{ backgroundColor: "#F3F4F6", overflow: "visible" }}>
+                          <div
+                            className="absolute inset-y-0 left-0 rounded-full"
+                            style={{ width: `${barWidth}%`, backgroundColor: barColor }}
+                          />
+                          <div
+                            className="absolute"
+                            style={{
+                              left: `${expectedPct}%`,
+                              top: "-4px",
+                              width: "1.5px",
+                              height: "16px",
+                              backgroundColor: "#9CA3AF",
+                              borderRadius: "1px",
+                              transform: "translateX(-50%)",
+                            }}
+                          />
+                        </div>
+
+                        {/* Col 4: stats */}
+                        <div className="text-right">
+                          <p className="font-mono text-xs text-gray-700 tabular-nums leading-tight">
+                            {formatCurrency(Math.max(remaining, 0))} left · {daysLeft}d
+                          </p>
+                          <p
+                            className="font-mono tabular-nums leading-tight"
+                            style={{ fontSize: 11, color: diff > 0 ? "#ef4444" : "#10b981" }}
+                          >
+                            Projected: {formatCurrency(projected)} ({diff > 0 ? "+" : ""}{formatCurrency(Math.abs(diff))})
+                          </p>
+                        </div>
+
+                        {/* Col 5: chevron */}
+                        <div className="flex items-center justify-center">
+                          <svg
+                            className="w-3.5 h-3.5 text-gray-400"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                            style={{
+                              transform: isExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                              transition: "transform 0.2s ease",
+                            }}
+                          >
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
                       </div>
 
-                      {/* Col 2: status pill */}
-                      <div>
-                        <span
-                          className="inline-block px-2.5 py-0.5 rounded-full whitespace-nowrap"
-                          style={{ backgroundColor: pillBg, color: pillColor, fontSize: 11, fontWeight: 500 }}
-                        >
-                          {pillText}
-                        </span>
-                      </div>
-
-                      {/* Col 3: runway bar with pace marker */}
-                      <div className="relative h-2 rounded-full" style={{ backgroundColor: "#F3F4F6", overflow: "visible" }}>
-                        <div
-                          className="absolute inset-y-0 left-0 rounded-full"
-                          style={{ width: `${barWidth}%`, backgroundColor: barColor }}
-                        />
-                        <div
-                          className="absolute"
-                          style={{
-                            left: `${expectedPct}%`,
-                            top: "-4px",
-                            width: "1.5px",
-                            height: "16px",
-                            backgroundColor: "#9CA3AF",
-                            borderRadius: "1px",
-                            transform: "translateX(-50%)",
-                          }}
-                        />
-                      </div>
-
-                      {/* Col 4: stats */}
-                      <div className="text-right">
-                        <p className="font-mono text-xs text-gray-700 tabular-nums leading-tight">
-                          {formatCurrency(Math.max(remaining, 0))} left · {daysLeft}d
-                        </p>
-                        <p
-                          className="font-mono tabular-nums leading-tight"
-                          style={{ fontSize: 11, color: diff > 0 ? "#ef4444" : "#10b981" }}
-                        >
-                          Projected: {formatCurrency(projected)} ({diff > 0 ? "+" : ""}{formatCurrency(Math.abs(diff))})
-                        </p>
-                      </div>
+                      {/* Subcategory expansion */}
+                      {isExpanded && (
+                        <div style={{ borderTop: "1px solid #EBE5DC" }}>
+                          {cat.subcategories.length > 0 ? (
+                            cat.subcategories.map((sub, si, sarr) => {
+                              const subPct = sub.budgeted > 0 ? Math.min((sub.spent / sub.budgeted) * 100, 100) : 0;
+                              return (
+                                <div
+                                  key={sub.name}
+                                  style={{
+                                    paddingLeft: 32,
+                                    paddingRight: 20,
+                                    paddingTop: 8,
+                                    paddingBottom: 8,
+                                    background: "#FAFAF8",
+                                    borderBottom: si < sarr.length - 1 ? "1px solid #EBE5DC" : undefined,
+                                  }}
+                                >
+                                  <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center gap-2">
+                                      <span className="rounded-full shrink-0" style={{ width: 6, height: 6, display: "inline-block", backgroundColor: catColor }} />
+                                      <span style={{ fontSize: 12, color: "#6B635B" }}>{sub.name}</span>
+                                    </div>
+                                    <span className="font-mono tabular-nums" style={{ fontSize: 12, color: "#4B4440" }}>
+                                      {formatCurrency(sub.spent)}
+                                    </span>
+                                  </div>
+                                  {sub.budgeted > 0 ? (
+                                    <div style={{ height: 3, background: "#EBE5DC", borderRadius: 2, overflow: "hidden" }}>
+                                      <div style={{ width: `${subPct}%`, height: "100%", backgroundColor: catColor }} />
+                                    </div>
+                                  ) : (
+                                    <span style={{ fontSize: 11, color: "#A39A8F" }}>no budget</span>
+                                  )}
+                                </div>
+                              );
+                            })
+                          ) : (
+                            <div style={{ paddingLeft: 32, paddingRight: 20, paddingTop: 8, paddingBottom: 8, background: "#FAFAF8" }}>
+                              <span style={{ fontSize: 11, color: "#A39A8F" }}>No subcategories</span>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })}
@@ -1592,12 +1798,26 @@ export default function BudgetsClient({
 
       {/* Modals */}
       {showAddCategory && (
-        <AddCategoryModal
+        <AddModal
           existingIds={localCategories.map((c) => c.id)}
           nextSortOrder={localCategories.length}
-          onSave={handleCategoryAdded}
+          categories={localCategories}
+          existingBudgets={localBudgets}
+          onCategorySave={handleCategoryAdded}
+          onSubcategorySave={handleSubcategoryAdded}
+          onToast={showToastMsg}
           onClose={() => setShowAddCategory(false)}
         />
+      )}
+
+      {/* Success toast */}
+      {toastMsg && (
+        <div
+          className="fixed bottom-4 right-4 z-[100] px-4 py-3 rounded-lg text-white text-sm font-medium shadow-lg"
+          style={{ backgroundColor: "oklch(0.52 0.09 150)" }}
+        >
+          {toastMsg}
+        </div>
       )}
 
       {addingSubFor && (
