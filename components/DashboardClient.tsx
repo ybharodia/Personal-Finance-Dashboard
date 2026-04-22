@@ -48,6 +48,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
   const [syncStatus, setSyncStatus] = useState<SyncStatus>("idle");
   const [syncError, setSyncError] = useState<string | null>(null);
   const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
+  const [forecastBalance, setForecastBalance] = useState<number | null>(null);
 
   const handleDownload = useCallback(() => {
     const today = new Date().toISOString().slice(0, 10);
@@ -176,8 +177,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
             <div style={{ flex: 1, paddingLeft: 22, borderLeft: "1px solid var(--fo-hair)" }}>
               <p style={CARD_LABEL}>30-Day Forecast</p>
               <p className="num" style={{ ...CARD_VALUE, color: "var(--fo-ink)" }}>
-                {/* Placeholder — will wire to forecast data in a future chunk */}
-                —
+                {forecastBalance !== null ? formatCurrency(forecastBalance) : "—"}
               </p>
             </div>
           </div>
@@ -274,7 +274,7 @@ export default function DashboardClient({ accounts, transactions, budgets, categ
 
         {/* Row 4 — 30-Day Forecast (full width) */}
         <div style={{ height: 320 }}>
-          <CashFlowForecast />
+          <CashFlowForecast onForecastLoad={setForecastBalance} />
         </div>
 
       </div>

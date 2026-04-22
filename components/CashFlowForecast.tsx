@@ -34,7 +34,11 @@ function CustomTooltip({ active, payload }: CustomTooltipProps) {
   );
 }
 
-export default function CashFlowForecast() {
+type Props = {
+  onForecastLoad?: (projectedBalance: number) => void;
+};
+
+export default function CashFlowForecast({ onForecastLoad }: Props = {}) {
   const [raw, setRaw] = useState<ApiResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +48,12 @@ export default function CashFlowForecast() {
       .then((r) => r.json())
       .then((json) => {
         if (json.error) setError(json.error);
-        else setRaw(json as ApiResponse);
+        else {
+          const payload = json as ApiResponse;
+          setRaw(payload);
+          const endBalance = payload.days[payload.days.length - 1]?.balance ?? payload.startingBalance;
+          onForecastLoad?.(endBalance);
+        }
       })
       .catch((err) => {
         if (err.name !== "AbortError") setError(err.message ?? "Failed to load");

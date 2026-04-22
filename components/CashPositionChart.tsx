@@ -91,8 +91,8 @@ export default function CashPositionChart() {
             <AreaChart data={data} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
               <defs>
                 <linearGradient id="balanceGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="#378ADD" stopOpacity={0.25} />
-                  <stop offset="100%" stopColor="#378ADD" stopOpacity={0} />
+                  <stop offset="0%" stopColor="#b5613a" stopOpacity={0.12} />
+                  <stop offset="100%" stopColor="#b5613a" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis
@@ -107,11 +107,11 @@ export default function CashPositionChart() {
               <Area
                 type="monotone"
                 dataKey="total_balance"
-                stroke="#378ADD"
+                stroke="var(--fo-accent)"
                 strokeWidth={2}
                 fill="url(#balanceGrad)"
                 dot={false}
-                activeDot={{ r: 4, fill: "#378ADD" }}
+                activeDot={{ r: 4, fill: "var(--fo-accent)" }}
               />
             </AreaChart>
           </ResponsiveContainer>

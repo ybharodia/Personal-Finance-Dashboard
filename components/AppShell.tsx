@@ -4,12 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
-  LayoutDashboard,
-  ArrowLeftRight,
-  PieChart,
-  Repeat,
-  TrendingUp,
-  SlidersHorizontal,
   Search,
   Calendar,
   ChevronDown,
@@ -24,13 +18,13 @@ import {
 // ── Nav config ────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { label: "Dashboard",    href: "/",            icon: LayoutDashboard   },
-  { label: "Transactions", href: "/transactions", icon: ArrowLeftRight    },
-  { label: "Budgets",      href: "/budgets",      icon: PieChart          },
-  { label: "Recurring",    href: "/recurring",    icon: Repeat            },
+  { label: "Dash",  href: "/"            },
+  { label: "Txns",  href: "/transactions"},
+  { label: "Budgets", href: "/budgets"   },
+  { label: "Recur", href: "/recurring"   },
   // Route is /table (existing); will be renamed to /income in a future chunk
-  { label: "Income",       href: "/table",        icon: TrendingUp        },
-  { label: "Rules",        href: "/rules",        icon: SlidersHorizontal },
+  { label: "Income", href: "/table"      },
+  { label: "Rules", href: "/rules"       },
 ];
 
 const PRESETS: { preset: ShellPreset; label: string }[] = [
@@ -85,7 +79,7 @@ function Rail({ pathname }: { pathname: string }) {
       </div>
 
       {/* Nav items */}
-      {NAV_ITEMS.map(({ href, icon: Icon }) => {
+      {NAV_ITEMS.map(({ href, label }) => {
         const active = isActive(pathname, href);
         return (
           <Link key={href} href={href} style={{ position: "relative", display: "flex" }}>
@@ -105,17 +99,26 @@ function Rail({ pathname }: { pathname: string }) {
             <div
               style={{
                 width: 44,
-                height: 44,
+                minHeight: 44,
                 borderRadius: 9,
                 display: "flex",
+                flexDirection: "column",
                 alignItems: "center",
                 justifyContent: "center",
+                padding: "4px 2px",
                 background: active ? "var(--fo-accent-soft)" : "transparent",
                 color: active ? "var(--fo-accent)" : "var(--fo-muted)",
                 transition: "background 0.15s, color 0.15s",
+                fontFamily: "var(--font-fo-sans)",
+                fontSize: 10,
+                fontWeight: 600,
+                letterSpacing: "0.3px",
+                textAlign: "center",
+                lineHeight: 1.2,
+                textDecoration: "none",
               }}
             >
-              <Icon size={20} strokeWidth={1.6} />
+              {label}
             </div>
           </Link>
         );
