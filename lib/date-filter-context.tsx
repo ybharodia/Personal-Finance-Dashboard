@@ -14,6 +14,15 @@ export type ShellPreset =
 
 export type ShellDateRange = { from: Date; to: Date; preset: ShellPreset; label: string };
 
+export type SyncStatus = "idle" | "syncing" | "success" | "error";
+
+export type DashboardActions = {
+  onDownload: () => void;
+  onSync: () => void;
+  syncStatus: SyncStatus;
+  syncError: string | null;
+};
+
 function startOfDay(d: Date): Date {
   const r = new Date(d);
   r.setHours(0, 0, 0, 0);
@@ -71,6 +80,8 @@ export function getShellPresetRange(preset: ShellPreset): ShellDateRange {
 type DateFilterCtx = {
   dateRange: ShellDateRange;
   setDateRange: (r: ShellDateRange) => void;
+  dashboardActions: DashboardActions | null;
+  setDashboardActions: (a: DashboardActions | null) => void;
 };
 
 export const DateFilterContext = createContext<DateFilterCtx | null>(null);
@@ -85,8 +96,10 @@ export function DateFilterProvider({ children }: { children: React.ReactNode }) 
   const [dateRange, setDateRange] = useState<ShellDateRange>(() =>
     getShellPresetRange("month-to-date")
   );
+  const [dashboardActions, setDashboardActions] = useState<DashboardActions | null>(null);
+
   return (
-    <DateFilterContext.Provider value={{ dateRange, setDateRange }}>
+    <DateFilterContext.Provider value={{ dateRange, setDateRange, dashboardActions, setDashboardActions }}>
       {children}
     </DateFilterContext.Provider>
   );

@@ -234,6 +234,16 @@ function AccountMiniCard({ acct, onTag }: MiniCardProps) {
   );
 }
 
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+function isUntagged(a: DbAccount): boolean {
+  return !a.owner || !a.account_group;
+}
+
+function isCreditCard(a: DbAccount): boolean {
+  return a.account_group === "credit" || a.account_group === "business_credit";
+}
+
 // ── AccountsBox ───────────────────────────────────────────────────────────────
 
 type Props = { accounts: DbAccount[] };
@@ -247,11 +257,52 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
     setTagging(null);
   }
 
-  // Total liquid balance: sum non-credit accounts positive, subtract credit balances
+  // Total net balance: assets minus credit debt
   const totalBalance = localAccounts.reduce((sum, a) => {
-    const isCredit = a.account_group === "credit" || a.account_group === "business_credit";
-    return sum + (isCredit ? -Math.abs(a.balance) : a.balance);
+    return sum + (isCreditCard(a) ? -Math.abs(a.balance) : a.balance);
   }, 0);
+
+  const sections = [
+    {
+      key: "untagged",
+      label: "Untagged",
+      accounts: localAccounts.filter(isUntagged),
+    },
+    {
+      key: "yash",
+      label: "Yash",
+      accounts: localAccounts.filter((a) => !isUntagged(a) && a.owner === "yash" && !isCreditCard(a)),
+    },
+    {
+      key: "nancy",
+      label: "Nancy",
+      accounts: localAccounts.filter((a) => !isUntagged(a) && a.owner === "nancy" && !isCreditCard(a)),
+    },
+    {
+      key: "joint",
+      label: "Joint",
+      accounts: localAccounts.filter((a) => !isUntagged(a) && a.owner === "joint" && !isCreditCard(a)),
+    },
+    {
+      key: "business",
+      label: "Business",
+      accounts: localAccounts.filter((a) => !isUntagged(a) && a.owner === "business" && !isCreditCard(a)),
+    },
+    {
+      key: "credit",
+      label: "Credit Cards",
+      accounts: localAccounts.filter((a) => !isUntagged(a) && isCreditCard(a)),
+    },
+  ].filter((s) => s.accounts.length > 0);
+
+  const GROUP_LABEL: React.CSSProperties = {
+    fontSize: 9,
+    color: "var(--fo-faint)",
+    letterSpacing: "1.6px",
+    textTransform: "uppercase",
+    padding: "8px 0 4px",
+    fontFamily: "var(--font-fo-sans)",
+  };
 
   return (
     <>
@@ -268,7 +319,7 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
         }}
       >
         {/* Header */}
-        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexShrink: 0 }}>
           <div>
             <p
               style={{
@@ -306,23 +357,37 @@ export default function AccountsBox({ accounts: initialAccounts }: Props) {
           </span>
         </div>
 
-        {/* 2-column card grid */}
+        {/* Grouped account grids — capped height with scroll */}
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "1fr 1fr",
-            gap: 10,
             marginTop: 14,
             overflowY: "auto",
+            maxHeight: 480,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
           }}
         >
-          {localAccounts.length === 0 ? (
-            <p style={{ fontSize: 13, color: "var(--fo-muted)", gridColumn: "1 / -1", textAlign: "center", padding: "24px 0" }}>
+          {sections.length === 0 ? (
+            <p style={{ fontSize: 13, color: "var(--fo-muted)", textAlign: "center", padding: "24px 0" }}>
               No accounts found.
             </p>
           ) : (
-            localAccounts.map((acct) => (
-              <AccountMiniCard key={acct.id} acct={acct} onTag={() => setTagging(acct)} />
+            sections.map((section) => (
+              <div key={section.key}>
+                <p style={GROUP_LABEL}>{section.label}</p>
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 10,
+                  }}
+                >
+                  {section.accounts.map((acct) => (
+                    <AccountMiniCard key={acct.id} acct={acct} onTag={() => setTagging(acct)} />
+                  ))}
+                </div>
+              </div>
             ))
           )}
         </div>

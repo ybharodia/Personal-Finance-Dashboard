@@ -24,23 +24,23 @@ import {
 // ── Nav config ────────────────────────────────────────────────────────────────
 
 const NAV_ITEMS = [
-  { label: "Dashboard",    href: "/",            icon: LayoutDashboard  },
-  { label: "Transactions", href: "/transactions", icon: ArrowLeftRight   },
-  { label: "Budgets",      href: "/budgets",      icon: PieChart         },
-  { label: "Recurring",    href: "/recurring",    icon: Repeat           },
+  { label: "Dashboard",    href: "/",            icon: LayoutDashboard   },
+  { label: "Transactions", href: "/transactions", icon: ArrowLeftRight    },
+  { label: "Budgets",      href: "/budgets",      icon: PieChart          },
+  { label: "Recurring",    href: "/recurring",    icon: Repeat            },
   // Route is /table (existing); will be renamed to /income in a future chunk
-  { label: "Income",       href: "/table",        icon: TrendingUp       },
+  { label: "Income",       href: "/table",        icon: TrendingUp        },
   { label: "Rules",        href: "/rules",        icon: SlidersHorizontal },
 ];
 
 const PRESETS: { preset: ShellPreset; label: string }[] = [
-  { preset: "last-7",           label: "Last 7 days"    },
-  { preset: "last-30",          label: "Last 30 days"   },
-  { preset: "month-to-date",    label: "Month to date"  },
-  { preset: "quarter-to-date",  label: "Quarter to date"},
-  { preset: "year-to-date",     label: "Year to date"   },
-  { preset: "last-12-months",   label: "Last 12 months" },
-  { preset: "all-time",         label: "All time"       },
+  { preset: "last-7",          label: "Last 7 days"     },
+  { preset: "last-30",         label: "Last 30 days"    },
+  { preset: "month-to-date",   label: "Month to date"   },
+  { preset: "quarter-to-date", label: "Quarter to date" },
+  { preset: "year-to-date",    label: "Year to date"    },
+  { preset: "last-12-months",  label: "Last 12 months"  },
+  { preset: "all-time",        label: "All time"        },
 ];
 
 function isActive(pathname: string, href: string): boolean {
@@ -159,12 +159,12 @@ function DateFilterDropdown() {
     const [fy, fm, fd] = customFrom.split("-").map(Number);
     const [ty, tm, td] = customTo.split("-").map(Number);
     const from = new Date(fy, fm - 1, fd);
-    const to = new Date(ty, tm - 1, td + 1); // exclusive upper bound
+    const to = new Date(ty, tm - 1, td + 1);
     setDateRange({ from, to, preset: "custom", label: "Custom" });
     setOpen(false);
   }
 
-  const ghostBtn: React.CSSProperties = {
+  const triggerBtn: React.CSSProperties = {
     border: "1px solid var(--fo-hair)",
     background: "var(--fo-card)",
     color: "var(--fo-ink)",
@@ -180,20 +180,18 @@ function DateFilterDropdown() {
 
   return (
     <div style={{ position: "relative" }}>
-      <button style={ghostBtn} onClick={() => setOpen((v) => !v)}>
+      <button style={triggerBtn} onClick={() => setOpen((v) => !v)}>
         <Calendar size={14} color="var(--fo-faint)" />
-        <span style={{ color: "var(--fo-ink)" }}>{dateRange.label}</span>
+        <span>{dateRange.label}</span>
         <ChevronDown size={12} color="var(--fo-faint)" />
       </button>
 
       {open && (
         <>
-          {/* Backdrop */}
           <div
             style={{ position: "fixed", inset: 0, zIndex: 40 }}
             onClick={() => setOpen(false)}
           />
-          {/* Panel */}
           <div
             style={{
               position: "absolute",
@@ -208,7 +206,6 @@ function DateFilterDropdown() {
               width: 200,
             }}
           >
-            {/* Preset options */}
             {PRESETS.map(({ preset, label }) => {
               const active = dateRange.preset === preset;
               return (
@@ -235,7 +232,6 @@ function DateFilterDropdown() {
               );
             })}
 
-            {/* Divider + custom range */}
             <div style={{ borderTop: "1px solid var(--fo-hair)", margin: "8px 0" }} />
             <p
               style={{
@@ -251,48 +247,29 @@ function DateFilterDropdown() {
               Custom range
             </p>
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 6, padding: "0 4px" }}>
-              <div>
-                <label style={{ fontSize: 10, color: "var(--fo-muted)", fontFamily: "var(--font-fo-sans)" }}>From</label>
-                <input
-                  type="date"
-                  value={customFrom}
-                  onChange={(e) => setCustomFrom(e.target.value)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    fontSize: 11,
-                    border: "1px solid var(--fo-hair)",
-                    borderRadius: 4,
-                    padding: "4px 6px",
-                    fontFamily: "var(--font-fo-sans)",
-                    background: "var(--fo-soft)",
-                    color: "var(--fo-ink)",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
-              <div>
-                <label style={{ fontSize: 10, color: "var(--fo-muted)", fontFamily: "var(--font-fo-sans)" }}>To</label>
-                <input
-                  type="date"
-                  value={customTo}
-                  onChange={(e) => setCustomTo(e.target.value)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    fontSize: 11,
-                    border: "1px solid var(--fo-hair)",
-                    borderRadius: 4,
-                    padding: "4px 6px",
-                    fontFamily: "var(--font-fo-sans)",
-                    background: "var(--fo-soft)",
-                    color: "var(--fo-ink)",
-                    outline: "none",
-                    boxSizing: "border-box",
-                  }}
-                />
-              </div>
+              {(["From", "To"] as const).map((label, i) => (
+                <div key={label}>
+                  <label style={{ fontSize: 10, color: "var(--fo-muted)", fontFamily: "var(--font-fo-sans)" }}>{label}</label>
+                  <input
+                    type="date"
+                    value={i === 0 ? customFrom : customTo}
+                    onChange={(e) => i === 0 ? setCustomFrom(e.target.value) : setCustomTo(e.target.value)}
+                    style={{
+                      display: "block",
+                      width: "100%",
+                      fontSize: 11,
+                      border: "1px solid var(--fo-hair)",
+                      borderRadius: 4,
+                      padding: "4px 6px",
+                      fontFamily: "var(--font-fo-sans)",
+                      background: "var(--fo-soft)",
+                      color: "var(--fo-ink)",
+                      outline: "none",
+                      boxSizing: "border-box",
+                    }}
+                  />
+                </div>
+              ))}
             </div>
             <button
               onClick={applyCustom}
@@ -322,9 +299,37 @@ function DateFilterDropdown() {
 // ── Topbar ────────────────────────────────────────────────────────────────────
 
 function Topbar({ pathname }: { pathname: string }) {
+  const { dashboardActions } = useDateFilter();
   const monthYear = new Date()
     .toLocaleDateString("en-US", { month: "long", year: "numeric" })
     .toUpperCase();
+
+  const isDashboard = pathname === "/";
+  const actions = isDashboard ? dashboardActions : null;
+
+  const syncIdle: React.CSSProperties = {
+    background: "var(--fo-ink)",
+    color: "var(--fo-card)",
+    border: "none",
+    borderRadius: 7,
+    padding: "7px 13px",
+    fontSize: 12,
+    fontWeight: 500,
+    fontFamily: "var(--font-fo-sans)",
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+  };
+
+  const syncStyle: React.CSSProperties =
+    actions?.syncStatus === "success"
+      ? { ...syncIdle, background: "var(--fo-good)", color: "white" }
+      : actions?.syncStatus === "error"
+      ? { ...syncIdle, background: "var(--fo-bad)", color: "white" }
+      : actions?.syncStatus === "syncing"
+      ? { ...syncIdle, opacity: 0.6, cursor: "not-allowed" }
+      : syncIdle;
 
   return (
     <div
@@ -410,9 +415,59 @@ function Topbar({ pathname }: { pathname: string }) {
         </span>
       </div>
 
-      {/* Right — date filter (dashboard only) */}
-      <div style={{ flexShrink: 0 }}>
-        {pathname === "/" && <DateFilterDropdown />}
+      {/* Right — dashboard toolbar (date filter + download + sync) */}
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
+        {isDashboard && <DateFilterDropdown />}
+
+        {isDashboard && (
+          <button
+            onClick={actions?.onDownload}
+            style={{
+              border: "1px solid var(--fo-hair)",
+              background: "var(--fo-card)",
+              color: "var(--fo-ink)",
+              borderRadius: 7,
+              padding: "7px 12px",
+              fontSize: 12,
+              fontFamily: "var(--font-fo-sans)",
+              cursor: "pointer",
+            }}
+          >
+            ↓ Download
+          </button>
+        )}
+
+        {isDashboard && (
+          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
+            <button
+              onClick={actions?.onSync}
+              disabled={actions?.syncStatus === "syncing"}
+              style={syncStyle}
+            >
+              {actions?.syncStatus === "syncing" ? (
+                <>
+                  <svg width="13" height="13" className="animate-spin" fill="none" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Syncing…
+                </>
+              ) : actions?.syncStatus === "success" ? (
+                <>✓ Synced!</>
+              ) : (
+                <>
+                  ⟳ Sync
+                  <span style={{ fontSize: 10, opacity: 0.5, fontFamily: "var(--font-fo-mono)" }}>⌘S</span>
+                </>
+              )}
+            </button>
+            {actions?.syncStatus === "error" && actions.syncError && (
+              <p style={{ fontSize: 11, color: "var(--fo-bad)", maxWidth: 160, textAlign: "right" }}>
+                {actions.syncError}
+              </p>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -438,13 +493,7 @@ function ShellInner({ children }: { children: React.ReactNode }) {
       <div style={{ display: "flex", flexDirection: "column", flex: 1, overflow: "hidden" }}>
         <Topbar pathname={pathname} />
 
-        <main
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            background: "var(--fo-bg)",
-          }}
-        >
+        <main style={{ flex: 1, overflowY: "auto", background: "var(--fo-bg)" }}>
           <div style={{ padding: 24 }}>{children}</div>
         </main>
       </div>
