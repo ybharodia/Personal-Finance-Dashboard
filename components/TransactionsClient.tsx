@@ -62,6 +62,8 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
+  const [fromInput, setFromInput] = useState<string>(() => toIsoDate(getPresetRange("this-month").from));
+  const [toInput, setToInput] = useState<string>(() => toIsoDate(getPresetRange("this-month").to));
   const [filterCategory, setFilterCategory] = useState("");
   const [filterCategoryMode, setFilterCategoryMode] = useState<"include" | "exclude">("include");
   const [localTxns, setLocalTxns] = useState<DbTransaction[]>(transactions);
@@ -143,14 +145,29 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
     const d = dateRange.from;
     const year = d.getMonth() === 0 ? d.getFullYear() - 1 : d.getFullYear();
     const month = d.getMonth() === 0 ? 11 : d.getMonth() - 1;
-    setDateRange({ from: new Date(year, month, 1), to: new Date(year, month + 1, 1), preset: "custom" });
+    const from = new Date(year, month, 1);
+    const to = new Date(year, month + 1, 1);
+    setDateRange({ from, to, preset: "custom" });
+    setFromInput(toIsoDate(from));
+    setToInput(toIsoDate(to));
   }
 
   function nextMonth() {
     const d = dateRange.from;
     const year = d.getMonth() === 11 ? d.getFullYear() + 1 : d.getFullYear();
     const month = d.getMonth() === 11 ? 0 : d.getMonth() + 1;
-    setDateRange({ from: new Date(year, month, 1), to: new Date(year, month + 1, 1), preset: "custom" });
+    const from = new Date(year, month, 1);
+    const to = new Date(year, month + 1, 1);
+    setDateRange({ from, to, preset: "custom" });
+    setFromInput(toIsoDate(from));
+    setToInput(toIsoDate(to));
+  }
+
+  function applyDateRange() {
+    if (!fromInput || !toInput) return;
+    const [fy, fm, fd] = fromInput.split("-").map(Number);
+    const [ty, tm, td] = toInput.split("-").map(Number);
+    setDateRange({ from: new Date(fy, fm - 1, fd), to: new Date(ty, tm - 1, td), preset: "custom" });
   }
 
   const monthLabel = dateRange.from.toLocaleDateString("en-US", { month: "long", year: "numeric" });
@@ -183,6 +200,30 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
           {monthLabel}
         </span>
         <button style={CHEVRON_BTN} onClick={nextMonth}>›</button>
+
+        {/* Date range picker */}
+        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          <span style={{ fontSize: 11, color: "var(--fo-faint)", fontFamily: "var(--font-fo-sans)" }}>From</span>
+          <input
+            type="date"
+            value={fromInput}
+            onChange={(e) => setFromInput(e.target.value)}
+            style={{ border: "1px solid var(--fo-hair)", borderRadius: 6, padding: "5px 8px", fontSize: 12, fontFamily: "var(--font-fo-mono)", color: "var(--fo-ink)", background: "var(--fo-card)", outline: "none" }}
+          />
+          <span style={{ fontSize: 11, color: "var(--fo-faint)", fontFamily: "var(--font-fo-sans)" }}>To</span>
+          <input
+            type="date"
+            value={toInput}
+            onChange={(e) => setToInput(e.target.value)}
+            style={{ border: "1px solid var(--fo-hair)", borderRadius: 6, padding: "5px 8px", fontSize: 12, fontFamily: "var(--font-fo-mono)", color: "var(--fo-ink)", background: "var(--fo-card)", outline: "none" }}
+          />
+          <button
+            onClick={applyDateRange}
+            style={{ border: "1px solid var(--fo-hair)", background: "var(--fo-card)", color: "var(--fo-ink)", borderRadius: 6, padding: "5px 10px", fontSize: 12, cursor: "pointer", fontFamily: "var(--font-fo-sans)" }}
+          >
+            Apply
+          </button>
+        </div>
 
         {/* Type filter pills */}
         {([
@@ -388,7 +429,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
                           fontSize: 13,
                           fontWeight: 500,
                           fontVariantNumeric: "tabular-nums",
-                          color: isIncome ? "var(--fo-good)" : isTransfer ? "var(--fo-muted)" : "var(--fo-ink)",
+                          color: isIncome ? "var(--fo-good)" : isTransfer ? "var(--fo-muted)" : "var(--fo-bad)",
                           whiteSpace: "nowrap",
                         }}
                       >
