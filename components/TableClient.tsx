@@ -812,7 +812,7 @@ export default function TableClient({
                   <td
                     className="sticky left-0 z-10 whitespace-nowrap"
                     style={{
-                      background: "#ffffff",
+                      background: "#DDD1C2",
                       color: "#1a1715",
                       fontSize: 11.5,
                       padding: "10px 12px",
@@ -831,7 +831,7 @@ export default function TableClient({
                       padding: "10px 8px",
                       fontSize: 11.5,
                       fontFamily: MONO,
-                      background: "#ffffff",
+                      background: "#DDD1C2",
                       borderTop: "1px solid #ebe5dc",
                       borderBottom: "1px solid #ebe5dc",
                     }}
@@ -839,7 +839,7 @@ export default function TableClient({
                     —
                   </td>
                   {incomeSection.sectionMonthly.map((amt, i) => (
-                    <IncomeCell key={i} amount={amt} monthIdx={i} bold rowBg="#ffffff" />
+                    <IncomeCell key={i} amount={amt} monthIdx={i} bold rowBg="#DDD1C2" />
                   ))}
                   <td
                     style={{
@@ -850,7 +850,7 @@ export default function TableClient({
                       padding: "10px 8px",
                       fontWeight: 700,
                       color: "oklch(0.52 0.09 150)",
-                      background: "#ffffff",
+                      background: "#DDD1C2",
                       borderTop: "1px solid #ebe5dc",
                       borderBottom: "1px solid #ebe5dc",
                       borderLeft: "1px solid #ebe5dc",
@@ -865,7 +865,7 @@ export default function TableClient({
                       padding: "10px 8px",
                       fontSize: 11.5,
                       fontFamily: MONO,
-                      background: "#ffffff",
+                      background: "#DDD1C2",
                       borderTop: "1px solid #ebe5dc",
                       borderBottom: "1px solid #ebe5dc",
                     }}
@@ -879,7 +879,7 @@ export default function TableClient({
                       padding: "10px 8px",
                       fontSize: 11.5,
                       fontFamily: MONO,
-                      background: "#ffffff",
+                      background: "#DDD1C2",
                       borderTop: "1px solid #ebe5dc",
                       borderBottom: "1px solid #ebe5dc",
                     }}
