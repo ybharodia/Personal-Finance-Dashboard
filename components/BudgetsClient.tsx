@@ -1052,6 +1052,14 @@ export default function BudgetsClient({
   // State for AddSubcategoryModal
   const [addingSubFor, setAddingSubFor] = useState<{ catId: string; catName: string; catColor: string } | null>(null);
   const [expandedCatId, setExpandedCatId] = useState<string | null>(null);
+  const [expandedSubKeys, setExpandedSubKeys] = useState<Set<string>>(new Set());
+  function toggleSub(key: string) {
+    setExpandedSubKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+  }
   const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   // All pre-loaded transactions (2-year window loaded server-side)
@@ -1750,33 +1758,105 @@ export default function BudgetsClient({
                           {cat.subcategories.length > 0 ? (
                             cat.subcategories.map((sub, si, sarr) => {
                               const subPct = sub.budgeted > 0 ? Math.min((sub.spent / sub.budgeted) * 100, 100) : 0;
+                              const subKey = `${cat.id}::${sub.name}`;
+                              const isSubExpanded = expandedSubKeys.has(subKey);
+                              const sortedTxns = [...sub.transactions].sort(
+                                (a, b) => b.date.localeCompare(a.date)
+                              );
                               return (
                                 <div
                                   key={sub.name}
                                   style={{
-                                    paddingLeft: 32,
-                                    paddingRight: 20,
-                                    paddingTop: 8,
-                                    paddingBottom: 8,
                                     background: "#FAFAF8",
                                     borderBottom: si < sarr.length - 1 ? "1px solid #EBE5DC" : undefined,
                                   }}
                                 >
-                                  <div className="flex items-center justify-between mb-1.5">
-                                    <div className="flex items-center gap-2">
-                                      <span className="rounded-full shrink-0" style={{ width: 6, height: 6, display: "inline-block", backgroundColor: catColor }} />
-                                      <span style={{ fontSize: 12, color: "#6B635B" }}>{sub.name}</span>
+                                  {/* Subcategory header row — clickable */}
+                                  <div
+                                    className="cursor-pointer"
+                                    style={{ paddingLeft: 32, paddingRight: 20, paddingTop: 8, paddingBottom: 8 }}
+                                    onClick={() => toggleSub(subKey)}
+                                  >
+                                    <div className="flex items-center justify-between mb-1.5">
+                                      <div className="flex items-center gap-2">
+                                        <span className="rounded-full shrink-0" style={{ width: 6, height: 6, display: "inline-block", backgroundColor: catColor }} />
+                                        <span style={{ fontSize: 12, color: "#6B635B" }}>{sub.name}</span>
+                                      </div>
+                                      <div className="flex items-center gap-2">
+                                        <span className="font-mono tabular-nums" style={{ fontSize: 12, color: "#4B4440" }}>
+                                          {formatCurrency(sub.spent)}
+                                        </span>
+                                        <svg
+                                          fill="none"
+                                          viewBox="0 0 24 24"
+                                          stroke="currentColor"
+                                          strokeWidth={2}
+                                          style={{
+                                            width: 11,
+                                            height: 11,
+                                            color: "#A39A8F",
+                                            transform: isSubExpanded ? "rotate(90deg)" : "rotate(0deg)",
+                                            transition: "transform 0.2s ease",
+                                            flexShrink: 0,
+                                          }}
+                                        >
+                                          <path strokeLinecap="round" strokeLinejoin="round" d="M9 5l7 7-7 7" />
+                                        </svg>
+                                      </div>
                                     </div>
-                                    <span className="font-mono tabular-nums" style={{ fontSize: 12, color: "#4B4440" }}>
-                                      {formatCurrency(sub.spent)}
-                                    </span>
+                                    {sub.budgeted > 0 ? (
+                                      <div style={{ height: 3, background: "#EBE5DC", borderRadius: 2, overflow: "hidden" }}>
+                                        <div style={{ width: `${subPct}%`, height: "100%", backgroundColor: catColor }} />
+                                      </div>
+                                    ) : (
+                                      <span style={{ fontSize: 11, color: "#A39A8F" }}>no budget</span>
+                                    )}
                                   </div>
-                                  {sub.budgeted > 0 ? (
-                                    <div style={{ height: 3, background: "#EBE5DC", borderRadius: 2, overflow: "hidden" }}>
-                                      <div style={{ width: `${subPct}%`, height: "100%", backgroundColor: catColor }} />
+
+                                  {/* Transaction drilldown */}
+                                  {isSubExpanded && (
+                                    <div style={{ borderTop: "1px solid #EBE5DC", background: "#F5F2EE" }}>
+                                      {sortedTxns.length === 0 ? (
+                                        <div style={{ paddingLeft: 48, paddingRight: 20, paddingTop: 8, paddingBottom: 8 }}>
+                                          <span style={{ fontSize: 11, color: "#A39A8F" }}>No transactions this month</span>
+                                        </div>
+                                      ) : (
+                                        sortedTxns.map((txn, ti, tarr) => (
+                                          <div
+                                            key={txn.id}
+                                            className="flex items-center justify-between"
+                                            style={{
+                                              paddingLeft: 48,
+                                              paddingRight: 20,
+                                              paddingTop: 6,
+                                              paddingBottom: 6,
+                                              borderBottom: ti < tarr.length - 1 ? "1px solid #EBE5DC" : undefined,
+                                            }}
+                                          >
+                                            <div className="flex items-center gap-3 min-w-0">
+                                              <span
+                                                className="font-mono tabular-nums shrink-0"
+                                                style={{ fontSize: 10.5, color: "#A39A8F" }}
+                                              >
+                                                {txn.date.slice(5).replace("-", "/")}
+                                              </span>
+                                              <span
+                                                className="truncate"
+                                                style={{ fontSize: 11.5, color: "#6B635B" }}
+                                              >
+                                                {txn.description}
+                                              </span>
+                                            </div>
+                                            <span
+                                              className="font-mono tabular-nums shrink-0"
+                                              style={{ fontSize: 11.5, color: "#4B4440", marginLeft: 12 }}
+                                            >
+                                              {formatCurrency(txn.amount)}
+                                            </span>
+                                          </div>
+                                        ))
+                                      )}
                                     </div>
-                                  ) : (
-                                    <span style={{ fontSize: 11, color: "#A39A8F" }}>no budget</span>
                                   )}
                                 </div>
                               );
