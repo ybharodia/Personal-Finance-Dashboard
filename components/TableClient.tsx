@@ -381,12 +381,13 @@ export default function TableClient({
 
   function CategoryTotalRow({ section }: { section: Section }) {
     const borderStyle = "1px solid #ebe5dc";
+    const catTotalBg = "#DDD1C2";
     return (
       <tr>
         <td
           className="sticky left-0 z-10 whitespace-nowrap"
           style={{
-            background: "#ffffff",
+            background: catTotalBg,
             color: "#1a1715",
             fontSize: 11.5,
             padding: "10px 12px",
@@ -407,7 +408,7 @@ export default function TableClient({
             fontSize: 11.5,
             padding: "10px 8px",
             fontWeight: 700,
-            background: "#ffffff",
+            background: catTotalBg,
             borderTop: borderStyle,
             borderBottom: borderStyle,
           }}
@@ -415,7 +416,7 @@ export default function TableClient({
           {section.catBudget > 0 ? fmtDollars(section.catBudget) : "—"}
         </td>
         {section.catMonthly.map((amt, i) => (
-          <ExpenseCell key={i} amount={amt} monthIdx={i} bold rowBg="#ffffff" />
+          <ExpenseCell key={i} amount={amt} monthIdx={i} bold rowBg={catTotalBg} />
         ))}
         <td
           style={{
@@ -426,7 +427,7 @@ export default function TableClient({
             padding: "10px 8px",
             fontWeight: 700,
             color: section.catAnnualTotal > 0 ? "#1a1715" : "#a39a8f",
-            background: "#ffffff",
+            background: catTotalBg,
             borderTop: borderStyle,
             borderBottom: borderStyle,
             borderLeft: borderStyle,
@@ -443,7 +444,7 @@ export default function TableClient({
             fontSize: 11.5,
             padding: "10px 8px",
             fontWeight: 700,
-            background: "#ffffff",
+            background: catTotalBg,
             borderTop: borderStyle,
             borderBottom: borderStyle,
           }}
@@ -464,7 +465,7 @@ export default function TableClient({
                 : section.catVariance >= 0
                 ? "oklch(0.52 0.09 150)"
                 : "oklch(0.52 0.13 25)",
-            background: "#ffffff",
+            background: catTotalBg,
             borderTop: borderStyle,
             borderBottom: borderStyle,
           }}
