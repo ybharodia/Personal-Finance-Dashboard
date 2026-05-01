@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { type DateRange, getPresetRange } from "@/components/DateRangeFilter";
 import TransactionModal from "@/components/TransactionModal";
@@ -59,7 +59,11 @@ const CHEVRON_BTN: React.CSSProperties = {
 
 export default function TransactionsClient({ accounts, transactions, budgets, categories, plaidItems: _plaidItems }: Props) {
   const router = useRouter();
-  const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<Set<string>>(
+    () => new Set(accounts.map((a) => a.id))
+  );
+  const [acctDropOpen, setAcctDropOpen] = useState(false);
+  const acctDropRef = useRef<HTMLDivElement>(null);
   const [search, setSearch] = useState("");
   const [dateRange, setDateRange] = useState<DateRange>(() => getPresetRange("this-month"));
   const [fromInput, setFromInput] = useState<string>(() => toIsoDate(getPresetRange("this-month").from));
@@ -70,6 +74,18 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
 
   // Sync fresh server data into local state after router.refresh()
   useEffect(() => { setLocalTxns(transactions); }, [transactions]);
+
+  // Close account dropdown on outside click
+  useEffect(() => {
+    if (!acctDropOpen) return;
+    function handleClick(e: MouseEvent) {
+      if (acctDropRef.current && !acctDropRef.current.contains(e.target as Node)) {
+        setAcctDropOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
+  }, [acctDropOpen]);
   const [editingTx, setEditingTx] = useState<DbTransaction | null>(null);
   const [showAddModal, setShowAddModal] = useState(false);
   const [typeFilter, setTypeFilter] = useState<"income" | "expense" | "transfer" | null>(null);
@@ -86,13 +102,15 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
     return result.sort((a, b) => a.name.localeCompare(b.name));
   }, [localTxns, categories]);
 
+  const allAcctsSelected = selectedAccountIds.size === accounts.length;
+
   const filtered = useMemo(() => {
     const fromStr = toIsoDate(dateRange.from);
     const toStr = toIsoDate(dateRange.to);
 
-    let list = selectedAccount
-      ? localTxns.filter((t) => t.account_id === selectedAccount)
-      : localTxns;
+    let list = allAcctsSelected
+      ? localTxns
+      : localTxns.filter((t) => selectedAccountIds.has(t.account_id));
 
     // Date range filter
     list = list.filter((t) => t.date >= fromStr && t.date < toStr);
@@ -117,7 +135,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
     }
 
     return list;
-  }, [selectedAccount, search, dateRange, filterCategory, filterCategoryMode, localTxns, accounts, categories]);
+  }, [selectedAccountIds, allAcctsSelected, search, dateRange, filterCategory, filterCategoryMode, localTxns, accounts, categories]);
 
   // Totals always reflect the full date/account/search-filtered set, regardless of type filter
   const totalIncome    = filtered.filter((t) => t.type === "income").reduce((s, t) => s + t.amount, 0);
@@ -185,7 +203,7 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
   }
 
   // suppress unused-var warnings for state kept per spec
-  void selectedAccount; void setSelectedAccount; void filterCategory; void setFilterCategory;
+  void filterCategory; void setFilterCategory;
   void filterCategoryMode; void setFilterCategoryMode; void uniqueCategories;
 
   return (
@@ -253,6 +271,121 @@ export default function TransactionsClient({ accounts, transactions, budgets, ca
             </button>
           );
         })}
+
+        {/* Account multi-select dropdown */}
+        <div ref={acctDropRef} style={{ position: "relative" }}>
+          <button
+            onClick={() => setAcctDropOpen((o) => !o)}
+            style={{
+              background: allAcctsSelected ? "var(--fo-soft)" : "var(--fo-accent)",
+              color: allAcctsSelected ? "var(--fo-muted)" : "white",
+              fontWeight: allAcctsSelected ? 450 : 500,
+              borderRadius: 99,
+              padding: "5px 14px",
+              fontSize: 12,
+              border: "none",
+              cursor: "pointer",
+              fontFamily: "var(--font-fo-sans)",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+          >
+            {allAcctsSelected
+              ? "All accounts"
+              : selectedAccountIds.size === 1
+              ? (() => {
+                  const a = accounts.find((a) => selectedAccountIds.has(a.id));
+                  return a ? (a.custom_name?.trim() || a.name) : "1 account";
+                })()
+              : `${selectedAccountIds.size} accounts`}
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}
+              style={{ opacity: 0.7, transform: acctDropOpen ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {acctDropOpen && (
+            <div style={{
+              position: "absolute",
+              top: "calc(100% + 6px)",
+              left: 0,
+              zIndex: 50,
+              background: "var(--fo-card)",
+              border: "1px solid var(--fo-hair)",
+              borderRadius: 8,
+              boxShadow: "0 4px 16px rgba(0,0,0,0.10)",
+              minWidth: 220,
+              padding: "6px 0",
+            }}>
+              {/* Select all / Clear all */}
+              <button
+                onClick={() =>
+                  setSelectedAccountIds(
+                    allAcctsSelected
+                      ? new Set()
+                      : new Set(accounts.map((a) => a.id))
+                  )
+                }
+                style={{
+                  display: "block",
+                  width: "100%",
+                  textAlign: "left",
+                  padding: "6px 14px",
+                  fontSize: 11,
+                  fontWeight: 500,
+                  color: "var(--fo-accent)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "var(--font-fo-sans)",
+                  borderBottom: "1px solid var(--fo-hair)",
+                  marginBottom: 2,
+                }}
+              >
+                {allAcctsSelected ? "Clear all" : "Select all"}
+              </button>
+
+              {accounts.map((a) => {
+                const checked = selectedAccountIds.has(a.id);
+                const label = a.custom_name?.trim() || a.name;
+                return (
+                  <label
+                    key={a.id}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 8,
+                      padding: "6px 14px",
+                      cursor: "pointer",
+                      fontSize: 12,
+                      color: "var(--fo-ink)",
+                      fontFamily: "var(--font-fo-sans)",
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => {
+                        setSelectedAccountIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(a.id)) next.delete(a.id);
+                          else next.add(a.id);
+                          return next;
+                        });
+                      }}
+                      style={{ accentColor: "var(--fo-accent)", width: 13, height: 13 }}
+                    />
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      <span style={{ fontWeight: 500 }}>{a.bank_name}</span>
+                      <span style={{ color: "var(--fo-faint)" }}> · {label}</span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          )}
+        </div>
 
         {/* Right — search + add */}
         <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
